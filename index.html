@@ -842,9 +842,12 @@ body.dark-mode .sp-type-Event,body.dark-mode .sp-type-event{background:#3B1C1C;c
 .cal-hl{text-align:center;padding:8px 0 10px;font-size:10.5px;font-weight:600;color:var(--ink3);letter-spacing:.12em;text-transform:uppercase;font-family:var(--f-display)}
 .cal-hl:first-child,.cal-hl:last-child{color:var(--red);opacity:.75}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;flex:1;min-height:0}
-.cal-cell{background:var(--wh);border:1px solid var(--bd);border-radius:12px;padding:8px 9px 6px;min-height:calc((100vh - 230px)/5);position:relative;vertical-align:top;transition:all .2s var(--ease);overflow:hidden}
+.cal-cell{background:var(--wh);border:1px solid var(--bd);border-radius:12px;padding:8px 9px 6px;min-height:calc((100vh - 230px)/5);max-height:calc((100vh - 230px)/4);position:relative;vertical-align:top;transition:border-color .2s var(--ease),box-shadow .2s var(--ease);overflow-y:auto;overflow-x:hidden}
+.cal-cell::-webkit-scrollbar{width:3px}
+.cal-cell::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+.cal-cell::-webkit-scrollbar-track{background:transparent}
 .cal-cell.empty{background:transparent;border:1px dashed rgba(15,23,42,.05);box-shadow:none}
-.cal-cell:hover:not(.empty){border-color:rgba(192,57,43,.18);box-shadow:0 2px 8px -2px rgba(192,57,43,.08),0 1px 3px rgba(15,23,42,.04);transform:translateY(-1px)}
+.cal-cell:hover:not(.empty){border-color:rgba(192,57,43,.18);box-shadow:0 2px 8px -2px rgba(192,57,43,.08),0 1px 3px rgba(15,23,42,.04)}
 .cal-cell.tod{background:linear-gradient(135deg,#FFF8F7 0%,#FDEBE8 100%);border-color:rgba(192,57,43,.22);box-shadow:0 2px 10px -3px rgba(192,57,43,.15)}
 .cal-cell.tod::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:.5;border-radius:12px 12px 0 0}
 .cal-dt{font-size:11px;color:var(--ink3);font-weight:500;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;font-variant-numeric:tabular-nums;font-family:var(--f-display)}
@@ -11816,7 +11819,8 @@ ${text}
 16. แยก "ค่าน้ำมัน" กับ "ค่านั่งรถ":
     - "ค่าน้ำมัน" = travelOil / soundTravel
     - "ค่านั่งรถ", "ค่ารถ", "ค่าเดินทาง" = travelCar / soundCar
-17. ทีมระบบเสียง / ผู้ช่วยระบบเสียง — ถ้า prompt ระบุชื่อ/ชื่อเล่นของบุคคล (เช่น "ทีมระบบเสียง: โน้ต", "ผู้ช่วยซาวด์: เบียร์", "ช่างเสียงคือบอย") และชื่อนั้น match กับ memberList ได้ ให้ใส่ชื่อเล่นนั้นใน musicians[] เหมือนนักดนตรีปกติ พร้อมกำหนด fee/travel/oil ตามที่ระบุ (ถ้าไม่ระบุค่าตัวให้ใส่ fee=0) — ห้ามเว้นไว้แค่ใน note เพราะระบบต้องการผูก member ID จริง — ถ้าชื่อไม่อยู่ใน memberList ให้ข้าม (ไม่ใส่ musicians)`;
+17. ทีมระบบเสียง / ผู้ช่วยระบบเสียง — ถ้า prompt ระบุชื่อ/ชื่อเล่นของบุคคล (เช่น "ทีมระบบเสียง: โน้ต", "ผู้ช่วยซาวด์: เบียร์", "ช่างเสียงคือบอย") และชื่อนั้น match กับ memberList ได้ ให้ใส่ชื่อเล่นนั้นใน musicians[] เหมือนนักดนตรีปกติ พร้อมกำหนด fee/travel/oil ตามที่ระบุ (ถ้าไม่ระบุค่าตัวให้ใส่ fee=0) — ห้ามเว้นไว้แค่ใน note เพราะระบบต้องการผูก member ID จริง — ถ้าชื่อไม่อยู่ใน memberList ให้ข้าม (ไม่ใส่ musicians)
+18. ค่าแอด / ค่าโฆษณา / ค่า ads / ค่าบูสโพสต์ — ห้ามใส่ใน otherIncome เด็ดขาด และห้ามใส่ใน expenseRows ด้วย ให้ละเว้นข้อมูลนี้ทิ้งไปเลย ไม่ต้องนำมากรอกในช่องใดทั้งสิ้น`;
 
   try{
     /* สร้าง message content — PDF หรือ text */
@@ -11928,8 +11932,15 @@ function _reApplyAIFill(p){
   if(p.source){const gs=document.getElementById('gsource');if(gs){const srcL=p.source.toLowerCase();const opt=Array.from(gs.options).find(o=>o.value.toLowerCase()===srcL);if(opt)gs.value=opt.value;}}
   if(p.type){const gt=document.getElementById('gtype');if(gt){const typL=p.type.toLowerCase();const opt=Array.from(gt.options).find(o=>o.value.toLowerCase()===typL);if(opt)gt.value=opt.value;}}
   /* ── รายได้ ── */
-  /* ★ v95 fix: otherIncome รวมเข้า gf-band เพราะ gf-other เป็น hidden แก้ไขไม่ได้ */
-  const feeVal=(p.bandFee||p.fee||0)+(p.otherIncome||0);
+  /* ★ v96 fix: ถ้า otherIncomeNote มีคำว่า "แอด/โฆษณา/ads/บูส" → ย้ายไป expenseRows ไม่รวมใน bandFee */
+  const _isAdCost=(note)=>{
+    if(!note) return false;
+    const n=(note||'').toLowerCase();
+    return n.includes('แอด')||n.includes('โฆษณา')||n.includes('ads')||n.includes('บูส')||n.includes('boost')||n.includes('promote')||n.includes('ad ');
+  };
+  const otherIncomeIsAd=_isAdCost(p.otherIncomeNote);
+  /* รวม otherIncome เข้า gf-band เฉพาะกรณีที่ไม่ใช่ค่าแอด */
+  const feeVal=(p.bandFee||p.fee||0)+(otherIncomeIsAd?0:(p.otherIncome||0));
   if(feeVal>0) document.getElementById('gf-band').value=feeVal;
   if(p.afterParty>0) document.getElementById('gf-after').value=p.afterParty;
   if(p.soundFee>0) document.getElementById('gf-sound').value=p.soundFee;
@@ -11939,11 +11950,15 @@ function _reApplyAIFill(p){
   if(p.travelOil>0) document.getElementById('gf-travel-oil').value=p.travelOil;
   if(p.travelCar>0) document.getElementById('gf-travel-car').value=p.travelCar;
   if(p.tipTotal>0) document.getElementById('gf-tip-total').value=p.tipTotal;
-  /* otherIncome ถูกรวมเข้า gf-band แล้ว — ไม่ใส่ gf-other */
-  if(p.otherIncomeNote){
-    /* ใส่ note ใน หมายเหตุ ถ้ามี */
+  /* otherIncome: ถ้าเป็นค่าแอด → เพิ่มใน expenseRows แทน / ถ้าไม่ใช่ → รวมใน gf-band แล้วข้างบน */
+  if(otherIncomeIsAd&&(p.otherIncome||0)>0){
+    /* จะถูก insert ใน expenseRows block ด้านล่าง — store ไว้ก่อน */
+    p._adExpense={fee:p.otherIncome,note:p.otherIncomeNote||'ค่าแอด'};
+  }
+  if(p.otherIncomeNote&&!otherIncomeIsAd){
+    /* ใส่ note ใน หมายเหตุ เฉพาะกรณีที่ไม่ใช่ค่าแอด */
     const noteEl=document.getElementById('gnote');
-    if(noteEl&&p.otherIncomeNote){
+    if(noteEl){
       const existing=noteEl.value;
       noteEl.value=existing?(existing+'\n'+p.otherIncomeNote):p.otherIncomeNote;
     }
@@ -11958,6 +11973,7 @@ function _reApplyAIFill(p){
     if(p.expenseSoundFee>0) addExpenseRow(p.expenseSoundFee,'ค่าทีมเสียง');
     if(p.expenseOtherFee>0) addExpenseRow(p.expenseOtherFee,p.expenseOtherNote||'');
   }
+  /* ★ v96: ค่าแอด — ไม่ทำอะไรทั้งนั้น (ไม่รวมรายได้ ไม่ใส่ expense) */
   if(typeof calcExpenses==='function') calcExpenses();
   /* ── ลูกค้า ── */
   if(p.clientName){
