@@ -12096,14 +12096,80 @@ function _reApplyAIFill(p){
 ══════════════════════════════════════ */
 function openSlipExportModal(){
   const now=new Date();
+  /* Dynamic year dropdown — เริ่มจากปีเก่าสุดที่มีงานในระบบ */
+  const yrSel=document.getElementById('slip-export-year');
+  if(yrSel){
+    const curYear=now.getFullYear();
+    /* หาปีเก่าสุดและใหม่สุดที่มีงานจริงใน S.gigs */
+    const gigYears=S.gigs.filter(g=>g.date).map(g=>new Date(g.date).getFullYear()).filter(y=>!isNaN(y));
+    const minYear=gigYears.length?Math.min(...gigYears):curYear-1;
+    const maxYear=Math.max(curYear+1,...gigYears);
+    yrSel.innerHTML='';
+    for(let y=minYear;y<=maxYear;y++){
+      const o=document.createElement('option');
+      o.value=y;o.textContent=y;
+      if(y===curYear) o.selected=true;
+      yrSel.appendChild(o);
+    }
+  }
   document.getElementById('slip-export-from').value=now.getMonth();
   document.getElementById('slip-export-to').value=now.getMonth();
-  document.getElementById('slip-export-year').value=now.getFullYear();
   document.getElementById('slip-export-progress').style.display='none';
   document.getElementById('slip-export-bar').style.width='0%';
   const btn=document.getElementById('btn-slip-export');
   if(btn){btn.disabled=false;btn.style.opacity='1';}
   document.getElementById('modal-slip-export').classList.add('open');
+  updateSlipExportPreview();
+}
+
+function updateSlipExportPreview(){
+  const fromM=parseInt(document.getElementById('slip-export-from')?.value||0);
+  const toM=parseInt(document.getElementById('slip-export-to')?.value||0);
+  const y=parseInt(document.getElementById('slip-export-year')?.value||new Date().getFullYear());
+  const wantRecv=document.getElementById('slip-exp-recv')?.checked;
+  const wantPay=document.getElementById('slip-exp-pay')?.checked;
+  const prev=document.getElementById('slip-export-preview');
+  const txt=document.getElementById('slip-export-preview-text');
+  if(!prev||!txt) return;
+  /* นับงานในช่วง */
+  const gigs=S.gigs.filter(g=>{
+    if(g.status==='cancelled') return false;
+    const d=new Date(g.date);
+    if(d.getFullYear()!==y) return false;
+    const mo=d.getMonth();
+    return fromM<=toM?mo>=fromM&&mo<=toM:mo>=fromM||mo<=toM;
+  });
+  let recvCount=0,payCount=0,gigWithSlip=0;
+  gigs.forEach(g=>{
+    let hasAny=false;
+    if(wantRecv){
+      (g.payments||[]).forEach(p=>{
+        const sl=Array.isArray(p.slips)&&p.slips.length?p.slips:p.slip?[p.slip]:[];
+        recvCount+=sl.filter(Boolean).length;
+        if(sl.filter(Boolean).length) hasAny=true;
+      });
+    }
+    if(wantPay){
+      Object.values(g.memberPayments||{}).forEach(pd=>{
+        if(typeof pd!=='object') return;
+        const sl=Array.isArray(pd.slips)&&pd.slips.length?pd.slips:pd.slip?[pd.slip]:[];
+        payCount+=sl.filter(Boolean).length;
+        if(sl.filter(Boolean).length) hasAny=true;
+      });
+    }
+    if(hasAny) gigWithSlip++;
+  });
+  const total=recvCount+payCount;
+  if(total===0){
+    txt.innerHTML=`📋 ${gigs.length} งาน — <strong style="color:var(--atxt)">ไม่พบสลิปเลย</strong> ในช่วงนี้`;
+  } else {
+    txt.innerHTML=`📋 ${gigs.length} งาน · ${gigWithSlip} งานมีสลิป<br>`
+      +(wantRecv?`📥 รับเงิน: <strong>${recvCount} สลิป</strong>`:'')
+      +(wantRecv&&wantPay?' &nbsp;·&nbsp; ':'')
+      +(wantPay?`📤 จ่ายค่าตัว: <strong>${payCount} สลิป</strong>`:'')
+      +`<br><span style="color:var(--ink3)">รวมทั้งหมด ${total} ไฟล์</span>`;
+  }
+  prev.style.display='block';
 }
 
 async function doExportSlipZip(){
@@ -12169,13 +12235,19 @@ async function doExportSlipZip(){
     /* pay slips */
     if(wantPay){
       Object.entries(g.memberPayments||{}).forEach(([memId,pd])=>{
-        if(typeof pd!=='object') return;
+        /* ★ debug: log ทุก entry เพื่อ diagnose */
+        console.log(`[slip-debug] gig=${g.name} memId=${memId} pd=`,JSON.stringify(pd)?.substring(0,120));
+        if(typeof pd!=='object'||pd===null){
+          console.warn(`[slip-debug] SKIP — pd is not object:`,typeof pd,pd);
+          return;
+        }
         const mem=S.members.find(x=>String(x.id)===String(memId));
         const nick=(mem?.nick||memId).replace(/[\/\\:*?"<>|]/g,'_');
         /* รวม slips array + slip เดี่ยว */
         const allSlips=Array.isArray(pd.slips)&&pd.slips.length
           ?pd.slips
           :(pd.slip?[pd.slip]:[]);
+        console.log(`[slip-debug] allSlips=`,allSlips);
         allSlips.forEach((s,si)=>{
           if(!s) return;
           const suffix=allSlips.length>1?`_${si+1}`:'';
@@ -12192,6 +12264,37 @@ async function doExportSlipZip(){
 
   let done=0;
   const found=[];
+
+  /* ★ v96: Pre-fetch signed URLs แบบ batch สำหรับทุก slip_xxx key พร้อมกัน
+     แทนที่จะ sign ทีละใบ (ช้า + เสี่ยง timeout) */
+  const slipKeys=[...new Set(tasks.filter(t=>t.key&&t.key.startsWith('slip_')).map(t=>t.key))];
+  const signedUrlMap={};
+  if(slipKeys.length&&SUPABASE_URL&&_sbBandId){
+    status.textContent='กำลัง sign URLs ล่วงหน้า...';
+    try{
+      const paths=slipKeys.map(k=>`${_sbBandId}/${k}`);
+      const r=await fetch(`${SUPABASE_URL}/storage/v1/object/sign/slips`,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${_sbToken||SUPABASE_ANON}`,'Content-Type':'application/json'},
+        body:JSON.stringify({paths,expiresIn:3600})
+      });
+      if(r.ok){
+        const arr=await r.json();
+        /* arr = [{path, signedURL, error}] */
+        (Array.isArray(arr)?arr:[]).forEach(item=>{
+          if(item.signedURL&&!item.error){
+            /* path = "{bandId}/{key}" → extract key */
+            const key=item.path.replace(`${_sbBandId}/`,'');
+            signedUrlMap[key]=`${SUPABASE_URL}/storage/v1${item.signedURL}`;
+          }
+        });
+        console.log(`[slip] batch sign: ${Object.keys(signedUrlMap).length}/${slipKeys.length} OK`);
+      } else {
+        console.warn('[slip] batch sign failed, will fallback to per-key signed URLs');
+      }
+    }catch(e){console.warn('[slip] batch sign error:',e);}
+  }
+
   for(const task of tasks){
     status.textContent=`กำลังดึงสลิป ${done+1}/${tasks.length}...`;
     bar.style.width=Math.round(done/tasks.length*100)+'%';
@@ -12220,16 +12323,24 @@ async function doExportSlipZip(){
         if(r.ok){const blob=await r.blob();imgData=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(blob);});}
       }catch(e){console.warn('[slip] pubUrl err',e);}
     }
-    /* 4. Supabase signed URL */
-    if(!imgData&&isSlipKey&&SUPABASE_URL&&_sbBandId){
+    /* 4. Batch signed URL (pre-fetched) */
+    if(!imgData&&isSlipKey&&signedUrlMap[task.key]){
+      try{
+        const r=await fetch(signedUrlMap[task.key]);
+        console.log(`[slip] batchSignedUrl status=${r.status}`);
+        if(r.ok){const blob=await r.blob();imgData=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(blob);});}
+      }catch(e){console.warn('[slip] batchSignedUrl err',e);}
+    }
+    /* 5. Per-key signed URL (fallback ถ้า batch ไม่ได้ key นี้) */
+    if(!imgData&&isSlipKey&&!signedUrlMap[task.key]&&SUPABASE_URL&&_sbBandId){
       const url=await sbGetSignedUrl('slips',task.key).catch(()=>null);
-      console.log(`[slip] signedUrl=${url}`);
+      console.log(`[slip] perKeySignedUrl=${!!url}`);
       if(url){
         try{
           const r=await fetch(url);
-          console.log(`[slip] signedUrl status=${r.status}`);
+          console.log(`[slip] perKeySignedUrl status=${r.status}`);
           if(r.ok){const blob=await r.blob();imgData=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(blob);});}
-        }catch(e){console.warn('[slip] signedUrl err',e);}
+        }catch(e){console.warn('[slip] perKeySignedUrl err',e);}
       }
     }
     if(imgData){
@@ -12494,7 +12605,7 @@ async function doExportExcel(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fg">
         <label class="fl">จากเดือน</label>
-        <select class="fi" id="slip-export-from" style="font-size:12px">
+        <select class="fi" id="slip-export-from" style="font-size:12px" onchange="updateSlipExportPreview()">
           <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
           <option value="2">มีนาคม</option><option value="3">เมษายน</option>
           <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
@@ -12505,7 +12616,7 @@ async function doExportExcel(){
       </div>
       <div class="fg">
         <label class="fl">ถึงเดือน</label>
-        <select class="fi" id="slip-export-to" style="font-size:12px">
+        <select class="fi" id="slip-export-to" style="font-size:12px" onchange="updateSlipExportPreview()">
           <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
           <option value="2">มีนาคม</option><option value="3">เมษายน</option>
           <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
@@ -12517,22 +12628,23 @@ async function doExportExcel(){
     </div>
     <div class="fg">
       <label class="fl">ปี</label>
-      <select class="fi" id="slip-export-year" style="font-size:12px">
-        <option value="2025">2025</option>
-        <option value="2026" selected>2026</option>
-        <option value="2027">2027</option>
+      <select class="fi" id="slip-export-year" style="font-size:12px" onchange="updateSlipExportPreview()">
       </select>
     </div>
     <div style="margin-bottom:14px">
       <label class="fl" style="margin-bottom:6px">ประเภทสลิป</label>
       <div style="display:flex;gap:16px;margin-top:4px">
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="slip-exp-recv" checked style="accent-color:var(--red)"> รับเงิน (recv/)
+          <input type="checkbox" id="slip-exp-recv" checked style="accent-color:var(--red)" onchange="updateSlipExportPreview()"> รับเงิน (recv/)
         </label>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="slip-exp-pay" checked style="accent-color:var(--red)"> จ่ายเงินนักดนตรี (pay/)
+          <input type="checkbox" id="slip-exp-pay" checked style="accent-color:var(--red)" onchange="updateSlipExportPreview()"> จ่ายเงินนักดนตรี (pay/)
         </label>
       </div>
+    </div>
+    <!-- Preview count -->
+    <div id="slip-export-preview" style="background:var(--bbg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--btxt);margin-bottom:10px;display:none">
+      <div id="slip-export-preview-text" style="line-height:1.7"></div>
     </div>
     <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--ink3);margin-bottom:14px;line-height:1.7">
       📁 recv/ → JOB-000001_ชื่องาน_recv.jpg<br>
