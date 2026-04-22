@@ -785,6 +785,9 @@ body.dark-mode .sp-type-Corporate,body.dark-mode .sp-type-corporate{background:#
 body.dark-mode .sp-type-Event,body.dark-mode .sp-type-event{background:#3B1C1C;color:#FCA5A5}
 
 .sp-dash{color:var(--ink3);font-size:11px}
+/* ★ WHT column */
+.sp-wht-pct{font-size:12px;font-weight:700;color:var(--purple);font-family:var(--f-display);font-variant-numeric:tabular-nums}
+.sp-wht-amt{font-size:9.5px;color:var(--ptxt);font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
 
 /* gig tabs */
 .gig-tabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--bd);background:var(--wh);flex-shrink:0}
@@ -1688,6 +1691,10 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <button onclick="openFeeAudit()" id="btn-fee-audit" class="admin-only" title="ตรวจสอบค่าตัวงานที่น่าสงสัย" style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:#7C3AED;color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--f);height:32px">🔍 <span class="audit-label">ตรวจค่าตัว</span></button>
         <button onclick="openBulkOilEdit()" id="btn-bulk-oil" class="admin-only" style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--f);height:32px">⛽ แก้ค่าน้ำมัน</button>
         -->
+        <button onclick="openIncomeExportModal()" class="admin-only" style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:#059669;color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--f);height:32px;white-space:nowrap">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Export รายได้
+        </button>
         <button onclick="openAIFill()" id="btn-ai-fill" style="display:flex;align-items:center;gap:5px;padding:5px 12px;background:linear-gradient(135deg,#6366F1,#8B5CF6);color:#fff;border:none;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--f);height:32px">✨ AI กรอกงาน</button>
         <button class="btn btn-r" id="btn-add-gig" onclick="openGig()" style="position:relative">
           + เพิ่มงาน
@@ -1735,6 +1742,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
                 <th style="width:160px;cursor:pointer;user-select:none" onclick="sortGigCol('client')">ลูกค้า <span id="gs-client" style="font-size:9px;opacity:.5"></span></th>
                 <th style="width:90px;cursor:pointer;user-select:none" onclick="sortGigCol('source')">แหล่งที่มา <span id="gs-source" style="font-size:9px;opacity:.5"></span></th>
                 <th style="width:110px;cursor:pointer;user-select:none" onclick="sortGigCol('fee')">รายได้รวมของงาน <span id="gs-fee" style="font-size:9px;opacity:.5"></span></th>
+                <th style="width:90px">หัก ณ ที่จ่าย</th>
                 <th style="width:130px">สมาชิก</th>
                 <th style="width:110px;cursor:pointer;user-select:none" onclick="sortGigCol('status')">สถานะรับเงิน <span id="gs-status" style="font-size:9px;opacity:.5"></span></th>
                 <th style="width:115px">สถานะจ่ายค่าตัว</th>
@@ -2933,6 +2941,15 @@ Line: @somchai_jaidee
           <span style="font-size:11px;color:var(--ink3)">รายได้หลังหักภาษี</span>
           <span id="gig-wht-net-display" style="font-size:16px;font-weight:700;color:#6C5CE7">฿0</span>
         </div>
+        <!-- ★ v96: tip line — แสดงเฉพาะเมื่อมีทิป -->
+        <div id="gig-wht-tip-line" style="display:none;margin-top:2px;padding:4px 12px;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--ink3)">🎁 ค่าทิปรวม</span>
+          <span id="gig-wht-tip-amt" style="font-size:13px;font-weight:600;color:#92400E">+ ฿0</span>
+        </div>
+        <div id="gig-wht-final-wrap" style="display:none;margin-top:2px;background:linear-gradient(135deg,#F5F3FF,#EDE9FE);border:1.5px solid #6C5CE7;border-radius:var(--r);padding:7px 12px;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:#4C1D95;font-weight:600">ยอดรวม (หลังหัก + ทิป)</span>
+          <span id="gig-wht-final-display" style="font-size:16px;font-weight:700;color:#4C1D95">฿0</span>
+        </div>
       </div>
 
       <!-- ค่าใช้จ่าย + สถานะ + หมายเหตุ -->
@@ -4036,6 +4053,17 @@ const gigIncomeTotal=g=>{
     +(inc.other||0)+(inc.tipTotal||0)
     -(inc.discount||0);
 };
+/* ★ v96: รายได้รวมของงาน ไม่รวมทิป — ใช้ใน Job Table เท่านั้น
+   Dashboard/Income/Recv ยังใช้ gigIncomeTotal (รวมทิป) เดิม */
+const gigIncomeTotalNoTip=g=>{
+  const inc=g.income||{};
+  const bandVal=inc.band>0?inc.band:(g.fee||0);
+  return bandVal
+    +(inc.travel_oil||0)+(inc.travel_car||0)+(inc.after||0)
+    +(inc.sound||0)+(inc.sound_oil||0)+(inc.sound_car||0)
+    +(inc.other||0)
+    -(inc.discount||0);
+};
 /* ★ v96: ยอดที่ลูกค้าจ่ายจริง (หลังหัก ณ ที่จ่าย) — ใช้เฉพาะหน้า "รับเงิน" เท่านั้น
    Dashboard / รายได้ ใช้ gigIncomeTotal() เดิม (ยอดเต็ม ก่อนหัก WHT) */
 const gigClientDue=g=>{
@@ -4127,8 +4155,8 @@ function stab(id,el,g){
 }
 /* ── Dashboard KPI helpers ── */
 function gigRevenuePaid(g){
-  /* Revenue = only from payments actually received (tab รับเงิน) */
-  return(g.payments||[]).reduce((s,p)=>s+p.amount,0);
+  /* ★ v96: Revenue = ยอดในฟอร์มงาน ไม่รวมทิป — ตรงกับ Export Excel */
+  return gigIncomeTotalNoTip(g)||g.fee||0;
 }
 
 function gigMemberPayTotal(g){
@@ -5018,9 +5046,13 @@ function rg(){
       </td>
       <td>${g.source?`<span class="sp-source">${esc(g.source)}</span>`:'<span class="sp-dash">—</span>'}</td>
       <td style="white-space:nowrap">
-        <div class="sp-amt">฿${f(gigIncomeTotal(g)||netVal)}</div>
-        ${gigIncomeTotal(g)>0&&gigIncomeTotal(g)!==netVal?`<div class="sp-amt-sub">ค่าตัวสุทธิ ฿${f(netVal)}</div>`:''}
+        <div class="sp-amt">฿${f(gigIncomeTotalNoTip(g)||netVal)}</div>
+        ${gigIncomeTotalNoTip(g)>0&&gigIncomeTotalNoTip(g)!==netVal?`<div class="sp-amt-sub">ค่าตัวสุทธิ ฿${f(netVal)}</div>`:''}
       </td>
+      <td style="white-space:nowrap">${(()=>{
+        if(!g.whtEnabled||!g.whtAmt) return '<span class="sp-dash">—</span>';
+        return `<div class="sp-wht-pct">${g.whtRate||3}%</div><div class="sp-wht-amt">฿${f(g.whtAmt)}</div>`;
+      })()}</td>
       <td>${(()=>{
         const mus=g.musicians||[];
         if(!mus.length) return '<span class="sp-dash">—</span>';
@@ -5219,7 +5251,7 @@ function ri(){
   let kpiRealIncome=0, kpiForecastIncome=0, kpiPaidCount=0, kpiUnpaidCount=0;
   allGigs.forEach(g=>{
     if(g.status==='cancelled') return;
-    const totalDue=gigIncomeTotal(g)||g.fee||0;
+    const totalDue=gigIncomeTotalNoTip(g)||g.fee||0;
     if(g.status==='paid'){ kpiRealIncome+=totalDue; kpiPaidCount++; }
     else if(g.musicians&&g.musicians.length){ kpiForecastIncome+=totalDue; kpiUnpaidCount++; }
   });
@@ -5910,6 +5942,9 @@ function calcExpenses(){
 function calcWHT(){
   const checked=document.getElementById('gig-wht')?.checked||false;
   const total=parseFloat(document.getElementById('gf')?.value)||0;
+  /* ★ v96: WHT คิดจากรายได้ไม่รวมทิป */
+  const tipVal=parseFloat(document.getElementById('gf-tip-total')?.value)||0;
+  const totalNoTip=Math.max(0,total-tipVal);
   /* ★ v95 fix: แสดง/ซ่อน 3%/5% ตาม checkbox */
   const rateOpts=document.getElementById('gig-wht-rate-opts');
   if(rateOpts) rateOpts.style.display=checked?'flex':'none';
@@ -5919,17 +5954,28 @@ function calcWHT(){
   const whtDisplay=document.getElementById('gig-wht-display');
   const netWrap=document.getElementById('gig-wht-net-wrap');
   const netDisplay=document.getElementById('gig-wht-net-display');
-  if(checked&&total>0){
-    const whtAmt=Math.round(total*rate/100);
-    const netAmt=total-whtAmt;
+  const tipLine=document.getElementById('gig-wht-tip-line');
+  const finalDisplay=document.getElementById('gig-wht-final-display');
+  const finalWrap=document.getElementById('gig-wht-final-wrap');
+  if(checked&&totalNoTip>0){
+    const whtAmt=Math.round(totalNoTip*rate/100);
+    const netAmt=totalNoTip-whtAmt;
+    const finalAmt=netAmt+tipVal;
     if(whtDisplay){whtDisplay.style.display='block';whtDisplay.textContent=`หัก ${rate}% = ฿${whtAmt.toLocaleString('th-TH')}`;}
     if(netWrap){netWrap.style.display='flex';}
     if(netDisplay) netDisplay.textContent='฿'+netAmt.toLocaleString('th-TH');
-    /* store in gigState */
+    /* แสดง tip line + ยอดสุดท้าย เฉพาะเมื่อมีทิป */
+    if(tipLine) tipLine.style.display=tipVal>0?'flex':'none';
+    if(tipLine) tipLine.querySelector('#gig-wht-tip-amt').textContent='+ ฿'+tipVal.toLocaleString('th-TH');
+    if(finalWrap) finalWrap.style.display=tipVal>0?'flex':'none';
+    if(finalDisplay) finalDisplay.textContent='฿'+finalAmt.toLocaleString('th-TH');
+    /* store in gigState — whtAmt คิดจาก noTip */
     gigState.whtRate=rate;gigState.whtAmt=whtAmt;gigState.whtNet=netAmt;
   } else {
     if(whtDisplay){whtDisplay.style.display='none';}
     if(netWrap){netWrap.style.display='none';}
+    if(tipLine) tipLine.style.display='none';
+    if(finalWrap) finalWrap.style.display='none';
     gigState.whtRate=0;gigState.whtAmt=0;gigState.whtNet=0;
   }
 }
@@ -10364,7 +10410,7 @@ function renderForecast(){
   const pendingGigs=allGigs.filter(g=>g.status!=='paid');
 
   /* ── KPI 1: รายได้คาดการณ์รวม = fee รวมของงานที่ยังไม่ paid ── */
-  const forecastRevenue=pendingGigs.reduce((s,g)=>s+(gigIncomeTotal(g)||g.fee||0),0);
+  const forecastRevenue=pendingGigs.reduce((s,g)=>s+(gigIncomeTotalNoTip(g)||g.fee||0),0);
 
   /* ── KPI 2: ค่าใช้จ่ายที่คาดการณ์ = expense รวมของงานที่ยังไม่ paid ── */
   const forecastExpense=pendingGigs.reduce((s,g)=>s+gigExpTotal(g),0);
@@ -10401,7 +10447,7 @@ function renderForecast(){
 
   /* ── Bar chart: เฉพาะงาน pending แยกรายเดือน ── */
   const monthData=Array.from({length:12},(_,i)=>
-    pendingGigs.filter(g=>new Date(g.date).getMonth()===i).reduce((s,g)=>s+(gigIncomeTotal(g)||g.fee||0),0)
+    pendingGigs.filter(g=>new Date(g.date).getMonth()===i).reduce((s,g)=>s+(gigIncomeTotalNoTip(g)||g.fee||0),0)
   );
   const mx=Math.max(...monthData,1);
   const cm=new Date().getMonth();
@@ -12094,6 +12140,162 @@ function _reApplyAIFill(p){
 /* ══════════════════════════════════════
    EXPORT ZIP สลิป
 ══════════════════════════════════════ */
+function openIncomeExportModal(){
+  const now=new Date();
+  const yrSel=document.getElementById('iexp-year');
+  if(yrSel){
+    const curYear=now.getFullYear();
+    const gigYears=S.gigs.filter(g=>g.date).map(g=>new Date(g.date).getFullYear()).filter(y=>!isNaN(y));
+    const minYear=gigYears.length?Math.min(...gigYears):curYear-1;
+    const maxYear=Math.max(curYear+1,...gigYears);
+    yrSel.innerHTML='';
+    for(let y=minYear;y<=maxYear;y++){
+      const o=document.createElement('option');
+      o.value=y;o.textContent=y;
+      if(y===curYear) o.selected=true;
+      yrSel.appendChild(o);
+    }
+  }
+  const now2=new Date();
+  document.getElementById('iexp-from').value=now2.getMonth();
+  document.getElementById('iexp-to').value=now2.getMonth();
+  setIexpMode('year');
+  document.getElementById('modal-income-export').classList.add('open');
+}
+
+function setIexpMode(mode){
+  window._iexpMode=mode;
+  const btnY=document.getElementById('iexp-mode-year');
+  const btnM=document.getElementById('iexp-mode-month');
+  const range=document.getElementById('iexp-month-range');
+  if(mode==='year'){
+    btnY.style.background='var(--red)';btnY.style.color='#fff';
+    btnM.style.background='transparent';btnM.style.color='var(--ink3)';
+    range.style.display='none';
+  } else {
+    btnM.style.background='var(--red)';btnM.style.color='#fff';
+    btnY.style.background='transparent';btnY.style.color='var(--ink3)';
+    range.style.display='grid';
+  }
+  updateIncomeExportPreview();
+}
+
+function updateIncomeExportPreview(){
+  const y=parseInt(document.getElementById('iexp-year')?.value||new Date().getFullYear());
+  const mode=window._iexpMode||'year';
+  const fromM=mode==='year'?0:parseInt(document.getElementById('iexp-from')?.value||0);
+  const toM=mode==='year'?11:parseInt(document.getElementById('iexp-to')?.value||11);
+  const prev=document.getElementById('iexp-preview');
+  const txt=document.getElementById('iexp-preview-text');
+  if(!prev||!txt) return;
+  const gigs=S.gigs.filter(g=>{
+    if(g.status!=='paid') return false;
+    const d=new Date(g.date);
+    if(d.getFullYear()!==y) return false;
+    const mo=d.getMonth();
+    return fromM<=toM?mo>=fromM&&mo<=toM:mo>=fromM||mo<=toM;
+  });
+  const totalInc=gigs.reduce((s,g)=>s+gigIncomeTotalNoTip(g),0);
+  const totalWht=gigs.reduce((s,g)=>s+(g.whtEnabled?parseFloat(g.whtAmt||0):0),0);
+  prev.style.display='block';
+  if(!gigs.length){
+    prev.style.background='var(--abg)';prev.style.color='var(--atxt)';
+    txt.textContent='ไม่มีงานที่สถานะ "จ่ายเต็ม" ในช่วงนี้';
+  } else {
+    prev.style.background='var(--gbg)';prev.style.color='var(--gtxt)';
+    txt.innerHTML=`✅ ${gigs.length} งาน (สถานะ จ่ายเต็ม)<br>`
+      +`รายได้รวม: <strong>฿${f(totalInc)}</strong> &nbsp;·&nbsp; `
+      +`หัก ณ ที่จ่ายรวม: <strong>฿${f(totalWht)}</strong> &nbsp;·&nbsp; `
+      +`รายได้หลังหัก: <strong>฿${f(totalInc-totalWht)}</strong>`;
+  }
+}
+
+async function doExportIncomeExcel(){
+  if(!window.XLSX){
+    toast('⏳ กำลังโหลดเครื่องมือ Export...');
+    try{
+      await new Promise((res,rej)=>{
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload=res;
+        s.onerror=()=>{const s2=document.createElement('script');s2.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s2.onload=res;s2.onerror=rej;document.head.appendChild(s2);};
+        document.head.appendChild(s);
+      });
+    }catch(e){toast('❌ โหลด SheetJS ไม่ได้');return;}
+  }
+  const y=parseInt(document.getElementById('iexp-year').value);
+  const mode=window._iexpMode||'year';
+  const fromM=mode==='year'?0:parseInt(document.getElementById('iexp-from').value);
+  const toM=mode==='year'?11:parseInt(document.getElementById('iexp-to').value);
+  const TM=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+  const gigs=S.gigs.filter(g=>{
+    if(g.status!=='paid') return false;
+    const d=new Date(g.date);
+    if(d.getFullYear()!==y) return false;
+    const mo=d.getMonth();
+    return fromM<=toM?mo>=fromM&&mo<=toM:mo>=fromM||mo<=toM;
+  }).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  if(!gigs.length){toast('⚠ ไม่มีงาน (จ่ายเต็ม) ในช่วงที่เลือก');return;}
+
+  const sumInc=gigs.reduce((s,g)=>s+gigIncomeTotalNoTip(g),0);
+  const sumWht=gigs.reduce((s,g)=>s+(g.whtEnabled?parseFloat(g.whtAmt||0):0),0);
+  const sumNet=sumInc-sumWht;
+
+  const wb=XLSX.utils.book_new();
+  const ws_data=[];
+  const period=mode==='year'?`ทั้งปี ${y}`:(fromM===toM?`${TM[fromM]} ${y}`:`${TM[fromM]}–${TM[toM]} ${y}`);
+
+  /* ── Row 1: Title + Summary ซ้ายไปขวา ── */
+  ws_data.push([
+    `รายได้งาน — ${period}`,
+    `จำนวนงาน: ${gigs.length} งาน`,
+    `รายได้รวมของงาน: ฿${sumInc.toLocaleString('th-TH')}`,
+    `หัก ณ ที่จ่ายรวม: ฿${sumWht.toLocaleString('th-TH')}`,
+    `รายได้หลังหัก ณ ที่จ่าย: ฿${sumNet.toLocaleString('th-TH')}`
+  ]);
+  /* blank row */
+  ws_data.push([]);
+  /* ── Column headers ── */
+  ws_data.push([
+    'Order ID','วันที่','ชื่องาน','สถานที่','ลูกค้า',
+    'รายได้รวมของงาน (฿)','หัก ณ ที่จ่าย (%)','หัก ณ ที่จ่าย (฿)','รายได้หลังหัก ณ ที่จ่าย (฿)'
+  ]);
+  /* ── Data rows ── */
+  gigs.forEach(g=>{
+    const cl=findGigClient(g);
+    const clName=cl?cl.name:(g.clientName||'');
+    const inc=gigIncomeTotalNoTip(g);
+    const whtPct=g.whtEnabled?(g.whtRate||3):0;
+    const whtAmt=g.whtEnabled?parseFloat(g.whtAmt||0):0;
+    const netAmt=inc-whtAmt;
+    ws_data.push([
+      'JOB-'+String(g.jobNo||0).padStart(6,'0'),
+      fd(g.date),
+      g.name||'',
+      g.venue||'',
+      clName,
+      inc,
+      whtPct>0?`${whtPct}%`:'',
+      whtAmt||'',
+      netAmt
+    ]);
+  });
+  /* ── Summary footer ── */
+  ws_data.push([]);
+  ws_data.push(['รวมทั้งหมด','','','','',sumInc,'',sumWht,sumNet]);
+
+  const ws=XLSX.utils.aoa_to_sheet(ws_data);
+  ws['!cols']=[{wch:14},{wch:13},{wch:32},{wch:22},{wch:20},{wch:20},{wch:14},{wch:16},{wch:22}];
+
+  const sheetName=`รายได้ ${mode==='year'?y:(fromM===toM?TM[fromM]:TM[fromM]+'-'+TM[toM])}`;
+  XLSX.utils.book_append_sheet(wb,ws,sheetName.substring(0,31));
+  XLSX.writeFile(wb,`income_${mode==='year'?y:(fromM===toM?TM[fromM]:''+TM[fromM]+'-'+TM[toM])}_${y}.xlsx`);
+  toast(`✅ Export สำเร็จ — ${gigs.length} งาน`);
+  cx('modal-income-export');
+}
+
 function openSlipExportModal(){
   const now=new Date();
   /* Dynamic year dropdown — เริ่มจากปีเก่าสุดที่มีงานในระบบ */
@@ -12596,6 +12798,68 @@ async function doExportExcel(){
 </div>
 
 <!-- Modal: Export ZIP สลิป -->
+<!-- ══ Modal: Export รายได้ ══ -->
+<div class="overlay" id="modal-income-export" style="align-items:center;justify-content:center">
+  <div style="background:var(--wh);border-radius:16px;width:460px;max-width:95vw;padding:24px;box-shadow:var(--sh-lg)" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-size:15px;font-weight:700;color:var(--ink)">📊 Export รายได้</div>
+      <button onclick="cx('modal-income-export')" style="width:28px;height:28px;border:1px solid var(--bd2);border-radius:50%;background:var(--bg);cursor:pointer;font-size:12px;color:var(--ink3)">✕</button>
+    </div>
+    <!-- ปี -->
+    <div class="fg">
+      <label class="fl">ปี</label>
+      <select class="fi" id="iexp-year" style="font-size:12px" onchange="updateIncomeExportPreview()"></select>
+    </div>
+    <!-- Toggle ทั้งปี / รายเดือน -->
+    <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--bg);border-radius:10px;padding:4px">
+      <button id="iexp-mode-year" onclick="setIexpMode('year')"
+        style="flex:1;padding:7px 0;border:none;border-radius:7px;font-size:12px;font-weight:600;font-family:var(--f);cursor:pointer;background:var(--red);color:#fff;transition:all .15s">
+        ทั้งปี
+      </button>
+      <button id="iexp-mode-month" onclick="setIexpMode('month')"
+        style="flex:1;padding:7px 0;border:none;border-radius:7px;font-size:12px;font-weight:600;font-family:var(--f);cursor:pointer;background:transparent;color:var(--ink3);transition:all .15s">
+        รายเดือน
+      </button>
+    </div>
+    <!-- Month range (แสดงเฉพาะ mode = month) -->
+    <div id="iexp-month-range" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px">
+      <div class="fg">
+        <label class="fl">จากเดือน</label>
+        <select class="fi" id="iexp-from" style="font-size:12px" onchange="updateIncomeExportPreview()">
+          <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
+          <option value="2">มีนาคม</option><option value="3">เมษายน</option>
+          <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
+          <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
+          <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
+          <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">ถึงเดือน</label>
+        <select class="fi" id="iexp-to" style="font-size:12px" onchange="updateIncomeExportPreview()">
+          <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
+          <option value="2">มีนาคม</option><option value="3">เมษายน</option>
+          <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
+          <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
+          <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
+          <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+        </select>
+      </div>
+    </div>
+    <!-- Preview -->
+    <div id="iexp-preview" style="background:var(--gbg);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--gtxt);margin-bottom:14px;display:none;line-height:1.7">
+      <div id="iexp-preview-text"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="cx('modal-income-export')" style="flex:1;background:var(--bg);color:var(--ink2);border:1.5px solid var(--bd2)">ยกเลิก</button>
+      <button class="btn btn-r" onclick="doExportIncomeExcel()" id="btn-iexp" style="flex:2;display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export Excel
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-slip-export" style="align-items:center;justify-content:center">
   <div style="background:var(--wh);border-radius:16px;width:440px;max-width:95vw;padding:24px;box-shadow:var(--sh-lg)" onclick="event.stopPropagation()">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
