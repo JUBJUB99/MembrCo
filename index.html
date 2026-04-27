@@ -4223,12 +4223,27 @@ function rd(){
 
   const kpiEl=document.getElementById('kpi');
   const activeMembers=S.members.filter(x=>x.status==='active').length;
-  if(kpiEl) kpiEl.style.gridTemplateColumns='repeat(7,minmax(0,1fr))';
+  /* ★ v96: WHT KPI — รวมจาก paid gigs เท่านั้น */
+  const totalWht=paidGigs.reduce((s,g)=>s+(g.whtEnabled?parseFloat(g.whtAmt||0):0),0);
+  const revenueAfterWht=revenue-totalWht;
+  if(kpiEl) kpiEl.style.gridTemplateColumns='repeat(9,minmax(0,1fr))';
   if(kpiEl) kpiEl.innerHTML=`
     <div class="kpi cr">
       <div class="kpi-lbl">Revenue</div>
       <div class="kpi-val r">฿${f(revenue)}</div>
       <div class="kpi-sub">รับเงินจริง · ${periodLabel}</div>
+    </div>
+    <div class="kpi" style="position:relative">
+      <div class="kpi-lbl">หัก ณ ที่จ่าย</div>
+      <div class="kpi-val" style="color:#6C5CE7">฿${f(totalWht)}</div>
+      <div class="kpi-sub">ภาษีหัก ณ ที่จ่ายรวม</div>
+      <div style="height:3px;background:#6C5CE7;position:absolute;top:0;left:0;right:0;border-radius:var(--rlg) var(--rlg) 0 0"></div>
+    </div>
+    <div class="kpi" style="position:relative">
+      <div class="kpi-lbl">รายได้หลังหัก ณ ที่จ่าย</div>
+      <div class="kpi-val" style="color:#6C5CE7">฿${f(revenueAfterWht)}</div>
+      <div class="kpi-sub">Revenue − หัก ณ ที่จ่าย</div>
+      <div style="height:3px;background:#6C5CE7;position:absolute;top:0;left:0;right:0;border-radius:var(--rlg) var(--rlg) 0 0"></div>
     </div>
     <div class="kpi ca">
       <div class="kpi-lbl">Expense (ค่าตัว)</div>
@@ -9992,7 +10007,7 @@ async function doForgotPassword(){
     const r=await fetch(`${SUPABASE_URL}/auth/v1/recover`,{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON},
-      body:JSON.stringify({email, redirect_to: window.location.href.split('#')[0]+'#type=recovery'})
+      body:JSON.stringify({email, redirect_to:'https://membrco.com'})
     });
     const d=await r.json();
     if(!r.ok) throw new Error(d.error_description||d.message||'ส่งไม่สำเร็จ');
@@ -10191,7 +10206,7 @@ function checkConflict(current, loadedVersion, label='ข้อมูล'){
 let _gigLoadedVersion=null;
 let _memLoadedVersion=null;
 /* ── User account management ── */
-const MAX_USERS=10;
+const MAX_USERS=20;
 
 function renderUserList(){
   const wrap=document.getElementById('user-list-wrap');if(!wrap)return;
