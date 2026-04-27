@@ -8955,12 +8955,12 @@ function openPlanModal(){
   const st=getPlanStatus();
   const pm=document.getElementById('plan-modal');if(!pm)return;
   /* fill status */
-  const pLabel={trial:'Trial (7 วัน)',pro:'Pro Plan',expired:'หมดอายุ'}[st.type]||st.type;
+  const pLabel={trial:'Trial (7 วัน)',pro:'Pro Plan',pro_ai:'Pro AI',expired:'หมดอายุ'}[st.type]||st.type;
   const pEl=document.getElementById('pm-current-plan');if(pEl)pEl.textContent=pLabel;
   const expEl=document.getElementById('pm-expires');
   const p=S.plan||{};
   if(expEl){
-    const expDate=p.type==='pro'?p.proExpiresAt:p.trialEndsAt;
+    const expDate=(p.type==='pro'||p.type==='pro_ai')?p.proExpiresAt:p.trialEndsAt;
     expEl.textContent=expDate?fd(expDate.split('T')[0]):'—';
     expEl.style.color=st.isReadOnly?'var(--red)':'var(--ink)';
   }
