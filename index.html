@@ -2548,7 +2548,7 @@ Line: @somchai_jaidee
         <div style="text-align:right"><div style="font-size:10px;color:var(--ink3);margin-bottom:3px">วันหมดอายุ</div><div id="pm-expires" style="font-weight:600;color:var(--ink)">—</div></div>
       </div>
       <!-- Pro plan card -->
-      <div class="plan-card" onclick="selectPlan('pro')">
+      <div class="plan-card" data-plan="pro" onclick="selectPlan('pro')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-weight:600;font-size:14px;margin-bottom:3px">Pro Plan</div>
@@ -2567,7 +2567,7 @@ Line: @somchai_jaidee
         </div>
       </div>
       <!-- Pro AI plan card -->
-      <div class="plan-card" onclick="selectPlan('pro_ai')" style="margin-top:10px;border:2px solid transparent;background:linear-gradient(var(--wh),var(--wh)) padding-box,linear-gradient(135deg,#6366F1,#8B5CF6) border-box">
+      <div class="plan-card" data-plan="pro_ai" onclick="selectPlan('pro_ai')" style="margin-top:10px;border:2px solid transparent;background:linear-gradient(var(--wh),var(--wh)) padding-box,linear-gradient(135deg,#6366F1,#8B5CF6) border-box">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-weight:700;font-size:14px;margin-bottom:3px">Pro AI <span style="font-size:10px;background:linear-gradient(135deg,#6366F1,#8B5CF6);color:#fff;padding:2px 7px;border-radius:10px;margin-left:4px;font-weight:600">แนะนำ</span></div>
@@ -2614,7 +2614,7 @@ Line: @somchai_jaidee
           </label>
         </div>
       </div>
-      <div class="ma" style="margin-top:16px">
+      <div class="ma" style="margin-top:16px;position:sticky;bottom:0;background:var(--wh);padding:12px 0;border-top:1px solid var(--bd);z-index:10">
         <button class="btn btn-o" onclick="closePlanModal()">ปิด</button>
         <button class="btn btn-r" id="pm-next-btn" onclick="showPaymentSection()" style="display:none">ถัดไป — ชำระเงิน</button>
       </div>
@@ -8998,31 +8998,49 @@ let _QR_IMG_PRO = null; /* จะ capture จาก <img> ตอน page load */
 /* ★ v96: เก็บ plan ที่ user เลือกไว้ใน global (ตรง radio button selection) */
 let _selectedPlan='pro'; /* 'pro' | 'pro_ai' */
 
-function selectPlan(p){
-  _selectedPlan=p; /* ★ เก็บ plan ไว้อ่านตอน verify slip */
-  const amt=p==='pro_ai'?'฿599':'฿499';
-  const amtNum=p==='pro_ai'?599:499;
-  const amtEl=document.getElementById('pm-qr-amount');
-  const amtEl2=document.getElementById('pm-qr-amount2');
-  if(amtEl)amtEl.textContent=amt;
-  if(amtEl2)amtEl2.textContent=amt;
-  /* ★ v96: swap QR image ตาม plan */
-  const qrImg=document.getElementById('pm-qr-img');
-  if(qrImg){
-    if(!_QR_IMG_PRO) _QR_IMG_PRO=qrImg.src; /* capture initial pro image ครั้งแรก */
-    qrImg.src=p==='pro_ai'?_QR_IMG_PRO_AI:_QR_IMG_PRO;
+function selectPlan(p,evt){
+  try{
+    _selectedPlan=p;
+    const amt=p==='pro_ai'?'฿599':'฿499';
+    const amtNum=p==='pro_ai'?599:499;
+    const amtEl=document.getElementById('pm-qr-amount');
+    const amtEl2=document.getElementById('pm-qr-amount2');
+    if(amtEl)amtEl.textContent=amt;
+    if(amtEl2)amtEl2.textContent=amt;
+    const qrImg=document.getElementById('pm-qr-img');
+    if(qrImg){
+      if(!_QR_IMG_PRO) _QR_IMG_PRO=qrImg.src;
+      qrImg.src=p==='pro_ai'?_QR_IMG_PRO_AI:_QR_IMG_PRO;
+    }
+    const payBtn=document.getElementById('pm-pay-btn');
+    if(payBtn&&!payBtn.disabled)payBtn.textContent=`ชำระ ฿${amtNum} / เดือน`;
+    document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
+    const clickedCard=document.querySelector(`.plan-card[data-plan="${p}"]`);
+    if(clickedCard) clickedCard.classList.add('selected');
+    /* ★ v96: เปิด payment section + QR ทันที ไม่ต้องกดถัดไป */
+    const paySec=document.getElementById('pm-payment-section');
+    if(paySec) paySec.style.display='block';
+    const qr=document.getElementById('pm-qr-box');
+    const card=document.getElementById('pm-card-wrap');
+    if(qr) qr.style.display='block';
+    if(card) card.style.display='none';
+    /* scroll ไปที่ QR */
+    setTimeout(()=>{
+      if(paySec) paySec.scrollIntoView({behavior:'smooth',block:'start'});
+    },50);
+  }catch(e){
+    console.error('[selectPlan]',e);
   }
-  /* ★ update button text ให้ตรงกับ plan */
-  const payBtn=document.getElementById('pm-pay-btn');
-  if(payBtn&&!payBtn.disabled)payBtn.textContent=`ชำระ ฿${amtNum} / เดือน`;
-  document.querySelectorAll('.plan-card').forEach(c=>c.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
-  document.getElementById('pm-next-btn').style.display='inline-flex';
 }
 
 function showPaymentSection(){
   document.getElementById('pm-payment-section').style.display='block';
   document.getElementById('pm-next-btn').style.display='none';
+  /* ★ เปิด QR box ทันที ไม่ต้องกด toggle */
+  const qr=document.getElementById('pm-qr-box');
+  const card=document.getElementById('pm-card-wrap');
+  if(qr) qr.style.display='block';
+  if(card) card.style.display='none';
 }
 
 function showQR(){
@@ -10024,8 +10042,9 @@ async function doResetPassword(){
   const errEl=document.getElementById('reset-pass-err');
   const btn=document.getElementById('reset-pass-btn');
   errEl.style.display='none';
-  if(pass.length<8){errEl.textContent='รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร';errEl.style.display='block';return;}
-  if(pass!==confirm){errEl.textContent='รหัสผ่านไม่ตรงกัน';errEl.style.display='block';return;}
+  if(!pass){toast('⚠ กรุณากรอกรหัสผ่านใหม่');return;}
+  if(pass.length<8){toast('⚠ รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');return;}
+  if(pass!==confirm){toast('⚠ รหัสผ่านยืนยันไม่ตรงกัน');return;}
   btn.textContent='กำลังบันทึก...';btn.disabled=true;
   try{
     const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{
