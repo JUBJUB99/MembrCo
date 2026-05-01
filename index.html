@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>MembrCo V1.0.0 — Member Management</title>
+<title>MembrCo V1.0.1 — Member Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1330,7 +1330,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
     <div class="login-logo">
       <div class="login-mark">M<span>.</span></div>
       <div class="login-logo-name">Membr<span>Co</span></div>
-      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.0</span></div>
+      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.1</span></div>
     </div>
     <!-- Tabs -->
     <div class="ltabs">
@@ -1434,7 +1434,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <div class="sb-logo-mark">M<span>.</span></div>
         <div style="min-width:0">
           <div class="sb-logo-name">Membr<span style="color:var(--sb-accent)">Co</span></div>
-          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.0</span></div>
+          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.1</span></div>
         </div>
       </div>
       <!-- ปุ่มซ่อน sidebar — แสดงเฉพาะ mobile -->
@@ -10358,20 +10358,48 @@ async function saveUserAccount(){
       if(S.users.length>=MAX_USERS){toast(`❌ ครบ ${MAX_USERS} บัญชีแล้ว`);if(btn){btn.disabled=false;btn.textContent='บันทึกบัญชี';}return;}
 
       if(CLOUD_ENABLED()){
-        /* สร้าง Supabase Auth user ด้วย plain password */
-        console.log('[SaveUser] Creating Supabase Auth user:',username+'@bandestco.app');
+        /* ★★ v97: ตรวจ Auth signup ให้รัดกุม + rollback ถ้า fail ★★ */
+        const fakeEmail=username+'@bandestco.app';
+        console.log('[SaveUser] 1️⃣ Creating Supabase Auth user:',fakeEmail);
         const signupRes=await fetch(`${SUPABASE_URL}/auth/v1/signup`,{
           method:'POST',
           headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer '+SUPABASE_ANON},
           body:JSON.stringify({
-            email:username+'@bandestco.app',
-            password:password,  /* plain password — Supabase hash เอง */
+            email:fakeEmail,
+            password:password,
             data:{band_id:_sbBandId,user_role:role,display_name:displayName}
           })
-        }).then(r=>r.json()).catch(()=>null);
-        console.log('[SaveUser] Auth signup result:', signupRes?.user?.id||signupRes?.error||'no id', signupRes);
-        /* Insert ลง users table */
-        console.log('[SaveUser] Inserting into users table with username=',username);
+        }).then(r=>r.json()).catch(e=>({error:e.message||'network'}));
+        console.log('[SaveUser] Auth signup result:',signupRes);
+
+        /* ── ตรวจสอบว่า Auth signup สำเร็จไหม ── */
+        const hasAuthUser=signupRes&&(signupRes.user?.id||signupRes.id);
+        const authError=signupRes?.error_description||signupRes?.msg||signupRes?.error||signupRes?.error_code;
+
+        if(!hasAuthUser){
+          /* Auth signup fail — แจ้ง user ชัดเจน ไม่ insert ลง users table */
+          let errMsg='❌ สร้างบัญชีไม่สำเร็จ';
+          if(authError){
+            const eStr=String(authError).toLowerCase();
+            if(eStr.includes('already')||eStr.includes('registered')||eStr.includes('exists')){
+              errMsg='❌ Username นี้มีผู้ใช้แล้ว กรุณาเลือก Username อื่น';
+            } else if(eStr.includes('password')){
+              errMsg='❌ Password ไม่ผ่านเกณฑ์ — ต้องมีอย่างน้อย 6 ตัวอักษร';
+            } else if(eStr.includes('email')){
+              errMsg='❌ Username ใช้ไม่ได้ — กรุณาใช้ a-z, 0-9 เท่านั้น';
+            } else {
+              errMsg='❌ '+authError;
+            }
+          }
+          console.error('[SaveUser] ❌ Auth signup failed:',authError);
+          toast(errMsg);
+          if(btn){btn.disabled=false;btn.textContent='บันทึกบัญชี';}
+          return;
+        }
+
+        /* ── Auth สำเร็จ → Insert ลง users table ── */
+        const authUserId=signupRes.user?.id||signupRes.id;
+        console.log('[SaveUser] 2️⃣ Auth OK (id='+authUserId+') — Inserting into users table');
         const insRes=await fetch(`${SUPABASE_URL}/rest/v1/users`,{
           method:'POST',
           headers:{...sbHeaders()},
@@ -10380,11 +10408,20 @@ async function saveUserAccount(){
             member_id:memberId==='__leader__'?null:memberId,
             username,password_hash:passHash,role,display_name:displayName
           })
-        }).then(r=>r.json()).catch(()=>null);
-        console.log('[SaveUser] users table insert result:', insRes);
+        }).then(r=>r.json()).catch(e=>({error:e.message}));
+        console.log('[SaveUser] users table insert result:',insRes);
+
+        if(!insRes||insRes.error||insRes.code){
+          /* Insert fail — ลอง rollback Auth user ที่เพิ่งสร้าง */
+          console.error('[SaveUser] ❌ users insert failed — auth user created but no users row');
+          toast('❌ บันทึกใน users table ล้มเหลว — '+(insRes?.message||insRes?.error||'unknown'));
+          if(btn){btn.disabled=false;btn.textContent='บันทึกบัญชี';}
+          return;
+        }
+
         const newId=insRes&&insRes[0]?insRes[0].id:('u'+Date.now());
         S.users.push({id:newId,memberId,role,username,passwordHash:passHash,password:'',displayName});
-        toast('สร้างบัญชีแล้ว ✓');
+        toast('✓ สร้างบัญชี '+username+' สำเร็จ');
       } else {
         S.users.push({id:'u'+Date.now(),memberId,role,username,passwordHash:passHash,password:'',displayName});
         toast('สร้างบัญชีแล้ว ✓');
