@@ -6358,6 +6358,23 @@ function openGig(){
   document.getElementById('gbandsize').value='';
   populateSourceDropdown();populateJobTypeDropdown();setCtype('old');setSplit('amt');
   document.getElementById('gig-members-wrap').style.display='none';
+  /* ★ v97: Basic plan — lock จำนวนสมาชิก = 1 */
+  const gcountEl=document.getElementById('gcount');
+  if(gcountEl){
+    if(getPlanStatus().type==='basic'){
+      gcountEl.value=1;
+      gcountEl.readOnly=true;
+      gcountEl.style.background='var(--bg)';
+      gcountEl.style.cursor='not-allowed';
+      gcountEl.title='Basic Plan รองรับสมาชิก 1 คน — อัปเกรด Pro เพื่อปลดล็อก';
+      onCountChange();
+    } else {
+      gcountEl.readOnly=false;
+      gcountEl.style.background='';
+      gcountEl.style.cursor='';
+      gcountEl.title='';
+    }
+  }
 
   /* ── Restore draft if exists ── */
   if(S._gigDraft){
