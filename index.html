@@ -298,8 +298,8 @@ body{font-family:var(--f);background:var(--bg);color:var(--ink);font-size:13.5px
 
 /* ── KPI GRID ── */
 .kpi-grid{
-  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
-  gap:10px;margin-bottom:20px;
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:12px;margin-bottom:20px;
 }
 .kpi-grid-2{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
@@ -4226,7 +4226,7 @@ function rd(){
   /* ★ v96: WHT KPI — รวมจาก paid gigs เท่านั้น */
   const totalWht=paidGigs.reduce((s,g)=>s+(g.whtEnabled?parseFloat(g.whtAmt||0):0),0);
   const revenueAfterWht=revenue-totalWht;
-  if(kpiEl) kpiEl.style.gridTemplateColumns='repeat(9,minmax(0,1fr))';
+  if(kpiEl) kpiEl.style.gridTemplateColumns='';
   if(kpiEl) kpiEl.innerHTML=`
     <div class="kpi cr">
       <div class="kpi-lbl">Revenue</div>
