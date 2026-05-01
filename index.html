@@ -1917,12 +1917,16 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <!-- Dropdown checkbox -->
-          <div id="income-mem-filter-dropdown" style="display:none;position:absolute;top:calc(100%+4px);left:0;background:var(--wh);border:1.5px solid var(--bd2);border-radius:var(--rlg);box-shadow:var(--sh-lg);z-index:400;min-width:200px;max-height:280px;overflow-y:auto;padding:8px 0">
-            <div style="padding:6px 12px;border-bottom:1px solid var(--bd);display:flex;gap:6px">
+          <div id="income-mem-filter-dropdown" style="display:none;position:absolute;top:calc(100%+4px);left:0;background:var(--wh);border:1.5px solid var(--bd2);border-radius:var(--rlg);box-shadow:var(--sh-lg);z-index:400;min-width:240px;max-height:340px;overflow:hidden;padding:0;display:none;flex-direction:column">
+            <div style="padding:8px 10px 6px;border-bottom:1px solid var(--bd);position:relative">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--ink3);pointer-events:none"><circle cx="6" cy="6" r="4.2" stroke="currentColor" stroke-width="1.3"/><path d="M9.2 9.2L12 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <input id="income-mem-filter-search" placeholder="ค้นหาชื่อสมาชิก..." oninput="filterIncomeMemberList(this.value)" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--bd2);border-radius:6px;font-size:11px;font-family:var(--f);color:var(--ink);background:var(--wh)" autocomplete="off">
+            </div>
+            <div style="padding:6px 12px;border-bottom:1px solid var(--bd);display:flex;gap:6px;flex-shrink:0">
               <button onclick="selectAllIncomeMembers(true)" style="flex:1;padding:3px 0;border:1px solid var(--bd2);border-radius:5px;background:var(--bg);font-size:10px;cursor:pointer;font-family:var(--f);color:var(--ink2)">เลือกทั้งหมด</button>
               <button onclick="selectAllIncomeMembers(false)" style="flex:1;padding:3px 0;border:1px solid var(--bd2);border-radius:5px;background:var(--bg);font-size:10px;cursor:pointer;font-family:var(--f);color:var(--ink2)">ล้างทั้งหมด</button>
             </div>
-            <div id="income-mem-filter-list"></div>
+            <div id="income-mem-filter-list" style="overflow-y:auto;flex:1"></div>
           </div>
         </div>
         <select id="income-filter-source" class="chart-sel" style="height:30px;padding:4px 10px;font-size:12px" onchange="ri()">
@@ -4692,7 +4696,10 @@ function toggleIncomeMemberFilter(){
       if(data&&el){el.src=data;el.style.display='block';}
     },30);
   });
-  dd.style.display='block';
+  dd.style.display='flex';
+  /* ★ v97: clear search field + เน้น focus */
+  const searchEl=document.getElementById('income-mem-filter-search');
+  if(searchEl){searchEl.value='';setTimeout(()=>searchEl.focus(),50);}
   /* close on outside */
   setTimeout(()=>{
     const handler=e=>{
@@ -4716,6 +4723,15 @@ function selectAllIncomeMembers(all){
   _incomeSelectedMids.clear();
   if(all) cbs.forEach(cb=>_incomeSelectedMids.add(cb.value));
   updateIncomeMemberFilterLabel();ri();
+}
+/* ★ v97: search filter for member list (real-time) */
+function filterIncomeMemberList(q){
+  const term=(q||'').trim().toLowerCase();
+  const labels=document.querySelectorAll('#income-mem-filter-list label');
+  labels.forEach(label=>{
+    const txt=label.textContent.toLowerCase();
+    label.style.display=(!term||txt.includes(term))?'flex':'none';
+  });
 }
 function updateIncomeMemberFilterLabel(){
   const lbl=document.getElementById('income-mem-filter-label');
@@ -6768,6 +6784,30 @@ async function sg(){
     const conflict=checkConflict(S.gigs[i],_gigLoadedVersion,'งานนี้');
     if(conflict&&!confirm(conflict)) return; /* user chose not to overwrite */
     S.gigs[i]=bumpVersion({...S.gigs[i],...data});
+    /* ★ v97: หลังอัปเดตค่าตัวสมาชิก → recalc memberPayments.amount จาก cut ใหม่
+       ป้องกันข้อมูลใน "หน้าจ่ายเงิน" ค้างค่าเก่า
+       (หน้ารับเงินไม่ต้อง recalc — งาน paid ถูก lock แก้ไม่ได้อยู่แล้ว) */
+    const updatedGig=S.gigs[i];
+    if(updatedGig.memberPayments&&Object.keys(updatedGig.memberPayments).length){
+      Object.keys(updatedGig.memberPayments).forEach(mid=>{
+        const mem=S.members.find(m=>String(m.id)===String(mid));
+        if(!mem) return;
+        const newCut=getMemberCut(updatedGig,mem);
+        const mp=updatedGig.memberPayments[mid];
+        if(typeof mp==='object'&&mp){
+          /* recalc: ถ้าเดิม "จ่ายเต็ม" → ตามค่าตัวใหม่ทั้งหมด
+             ถ้า "จ่ายบางส่วน" → คงสัดส่วนเดิมไว้เท่าที่เป็นไปได้ (cap ที่ cut ใหม่) */
+          if(mp.paid){
+            mp.amount=newCut;
+          } else if(mp.amount>newCut){
+            mp.amount=newCut; /* cap ไม่ให้เกินค่าตัวใหม่ */
+          }
+          mp.paid=mp.amount>=newCut;
+          /* sync กลับ Supabase */
+          if(CLOUD_ENABLED()) syncMemberPayment(updatedGig.id,mid,mp).catch(console.error);
+        }
+      });
+    }
     toast('บันทึกแล้ว ✓');
     if(CLOUD_ENABLED()) syncGig(S.gigs[i]).catch(console.error);
   } else {
@@ -11512,8 +11552,21 @@ function gigActionDuplicate(){
       setSplit(gigState.splitMode);
       setTimeout(()=>{
         g.musicians.forEach((mu,i)=>{
-          const sel=document.getElementById('gmem-'+i);
-          if(sel&&mu.memberId)sel.value=String(mu.memberId);
+          /* ★ v97 fix: set ทั้ง hidden input (gmem-i) + text input (gmem-txt-i)
+             เดิม set แค่ hidden — visible textbox จะว่าง user เข้าใจผิดว่าสมาชิกหาย */
+          const hiddenSel=document.getElementById('gmem-'+i);
+          const txtSel=document.getElementById('gmem-txt-'+i);
+          if(mu.memberId){
+            const mem=S.members.find(m=>String(m.id)===String(mu.memberId)&&m.status==='active');
+            if(mem){
+              if(hiddenSel) hiddenSel.value=String(mu.memberId);
+              if(txtSel) txtSel.value=`${mem.name}${mem.lastname?' '+mem.lastname:''} (${mem.nick}) — ${mem.role}`;
+            } else {
+              /* สมาชิกถูกลบ/inactive แล้ว — เคลียร์ทั้ง 2 ช่อง */
+              if(hiddenSel) hiddenSel.value='';
+              if(txtSel){txtSel.value='';txtSel.placeholder='⚠ สมาชิกเดิมไม่อยู่ในระบบแล้ว';}
+            }
+          }
           if(mu.breakdown){
             const bd=mu.breakdown;
             const setV=(id,v)=>{const el=document.getElementById(id);if(el&&v)el.value=v;};
@@ -11525,10 +11578,14 @@ function gigActionDuplicate(){
           } else if(gigState.splitMode==='pct'){
             const pctEl=document.getElementById('gpct-'+i);
             if(pctEl&&pctEl.tagName==='INPUT')pctEl.value=mu.pct||0;
+          } else if(gigState.splitMode==='amt'){
+            /* fix amount mode: set fixed amount */
+            const pctEl=document.getElementById('gpct-'+i);
+            if(pctEl&&pctEl.tagName==='INPUT')pctEl.value=mu.fixedAmt||mu.pct||0;
           }
         });
         updateSummary();
-      },100);
+      },150);
     }
     toast('📋 คัดลอกข้อมูลงานแล้ว — ตรวจสอบและแก้ไขก่อนบันทึก');
   },200);
@@ -12784,10 +12841,13 @@ async function doExportSlipZip(){
   cx('modal-slip-export');
 }
 
+/* ★ v97: Export modal — multi-select checkbox dropdown */
+let _exportSelectedMids=new Set(); /* empty = ทุกคน */
+
 function openExportModal(){
-  const sel=document.getElementById('export-member');
-  if(sel) sel.innerHTML='<option value="all">ทุกคน</option>'+
-    S.members.filter(m=>m.status==='active').map(m=>`<option value="${m.id}">${m.name} (${m.nick})</option>`).join('');
+  /* reset selection — empty = ทุกคน */
+  _exportSelectedMids.clear();
+  updateExportMemberLabel();
   const now=new Date();
   const fm=document.getElementById('export-from-month');
   const tm=document.getElementById('export-to-month');
@@ -12796,6 +12856,108 @@ function openExportModal(){
   if(tm)tm.value=now.getMonth();
   if(ey)ey.value=now.getFullYear();
   document.getElementById('modal-export').classList.add('open');
+}
+
+function toggleExportMemberFilter(){
+  const dd=document.getElementById('export-mem-dropdown');
+  if(!dd)return;
+  const isOpen=dd.style.display!=='none'&&dd.style.display!=='';
+  if(isOpen){dd.style.display='none';return;}
+  /* build list */
+  const list=document.getElementById('export-mem-list');
+  const activeM=S.members.filter(m=>m.status==='active');
+  list.innerHTML=activeM.map(m=>{
+    const isKey=m.photo&&(m.photo.startsWith('photo_')||m.photo.startsWith('slip_'));
+    const photoHtml=m.photo
+      ? (isKey
+          ? `<img id="exmf-${m.id}" src="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;display:none">`
+          : `<img src="${m.photo}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0">`)
+      : `<div style="width:20px;height:20px;border-radius:50%;background:var(--rp);color:var(--red);font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">${esc((m.nick||m.name||'?').charAt(0))}</div>`;
+    return `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:var(--ink);transition:background .1s"
+      onmouseover="this.style.background='var(--rl)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" value="${m.id}" onchange="onExportMemberCheck()"
+        style="accent-color:var(--red);width:13px;height:13px;cursor:pointer;flex-shrink:0"
+        ${_exportSelectedMids.has(String(m.id))?'checked':''}>
+      <div style="display:flex;align-items:center;gap:6px;min-width:0">
+        ${photoHtml}
+        <span style="font-weight:500">${esc(m.name)}</span>
+        <span style="color:var(--ink3);font-size:10px">${m.nick?'('+esc(m.nick)+')':''}</span>
+      </div>
+    </label>`;
+  }).join('');
+  /* async load รูปจาก IndexedDB/Supabase Storage */
+  activeM.forEach(m=>{
+    const isKey=m.photo&&(m.photo.startsWith('photo_')||m.photo.startsWith('slip_'));
+    if(!isKey) return;
+    setTimeout(async()=>{
+      const el=document.getElementById('exmf-'+m.id);
+      if(!el) return;
+      let data=await SlipStore.load(m.photo).catch(()=>null);
+      if(!data&&SUPABASE_URL&&_sbBandId){
+        const pubUrl=`${SUPABASE_URL}/storage/v1/object/public/photos/${_sbBandId}/${m.photo}`;
+        try{const probe=await fetch(pubUrl,{method:'HEAD'});if(probe.ok) data=pubUrl;}catch(e){}
+      }
+      if(!data&&SUPABASE_URL&&_sbBandId){
+        data=await sbGetSignedUrl('photos',m.photo).catch(()=>null);
+      }
+      if(data&&el){el.src=data;el.style.display='block';}
+    },30);
+  });
+  dd.style.display='flex';
+  dd.style.flexDirection='column';
+  /* clear search + focus */
+  const searchEl=document.getElementById('export-mem-search');
+  if(searchEl){searchEl.value='';setTimeout(()=>searchEl.focus(),50);}
+  /* close on outside */
+  setTimeout(()=>{
+    const handler=e=>{
+      if(!document.getElementById('modal-export')?.contains(e.target)) return;
+      const wrap=document.getElementById('export-mem-btn')?.parentElement;
+      if(wrap&&!wrap.contains(e.target)){
+        dd.style.display='none';document.removeEventListener('click',handler,true);
+      }
+    };
+    document.addEventListener('click',handler,true);
+  },100);
+}
+
+function onExportMemberCheck(){
+  _exportSelectedMids.clear();
+  document.querySelectorAll('#export-mem-list input[type=checkbox]:checked').forEach(cb=>{
+    _exportSelectedMids.add(cb.value);
+  });
+  updateExportMemberLabel();
+}
+
+function selectAllExportMembers(all){
+  const cbs=document.querySelectorAll('#export-mem-list input[type=checkbox]');
+  cbs.forEach(cb=>{cb.checked=all;});
+  _exportSelectedMids.clear();
+  if(all) cbs.forEach(cb=>_exportSelectedMids.add(cb.value));
+  updateExportMemberLabel();
+}
+
+function filterExportMemberList(q){
+  const term=(q||'').trim().toLowerCase();
+  const labels=document.querySelectorAll('#export-mem-list label');
+  labels.forEach(label=>{
+    const txt=label.textContent.toLowerCase();
+    label.style.display=(!term||txt.includes(term))?'flex':'none';
+  });
+}
+
+function updateExportMemberLabel(){
+  const lbl=document.getElementById('export-mem-label');
+  if(!lbl)return;
+  const total=S.members.filter(m=>m.status==='active').length;
+  const cnt=_exportSelectedMids.size;
+  if(cnt===0||cnt===total) lbl.textContent='ทุกคน ('+total+')';
+  else if(cnt===1){
+    const id=[..._exportSelectedMids][0];
+    const m=S.members.find(x=>String(x.id)===String(id));
+    lbl.textContent=m?(m.name+(m.nick?' ('+m.nick+')':'')):'1 คน';
+  } else lbl.textContent='เลือก '+cnt+' คน';
 }
 
 async function doExportExcel(){
@@ -12824,7 +12986,7 @@ async function doExportExcel(){
   }
   if(!window.XLSX){toast('❌ SheetJS ไม่พร้อมใช้งาน');return;}
 
-  const memId=document.getElementById('export-member').value;
+  /* ★ v97: อ่าน selected members จาก Set */
   const fromMRaw=document.getElementById('export-from-month').value;
   const toMRaw=document.getElementById('export-to-month').value;
   const fromM=parseInt(fromMRaw);
@@ -12852,7 +13014,11 @@ async function doExportExcel(){
 
   const TM2=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const TM2b=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const members=memId==='all'?S.members.filter(m=>m.status==='active'):[S.members.find(m=>String(m.id)===String(memId))].filter(Boolean);
+  const allActive=S.members.filter(m=>m.status==='active');
+  /* ★ v97: ถ้าไม่ได้ติ๊กเลย หรือติ๊กครบทุกคน → ทุกคน; ถ้าติ๊กบางคน → เฉพาะที่ติ๊ก */
+  const members=(_exportSelectedMids.size===0||_exportSelectedMids.size===allActive.length)
+    ? allActive
+    : allActive.filter(m=>_exportSelectedMids.has(String(m.id)));
 
   try{
     const wb=XLSX.utils.book_new();
@@ -12963,11 +13129,23 @@ async function doExportExcel(){
       <div style="font-size:15px;font-weight:700;color:var(--ink)">📊 Export ข้อมูลรายได้</div>
       <button onclick="cx('modal-export')" style="width:28px;height:28px;border:1px solid var(--bd2);border-radius:50%;background:var(--bg);cursor:pointer;font-size:12px;color:var(--ink3)">✕</button>
     </div>
-    <div class="fg">
+    <div class="fg" style="position:relative">
       <label class="fl">สมาชิก</label>
-      <select class="fi" id="export-member" style="font-size:12px">
-        <option value="all">ทุกคน</option>
-      </select>
+      <button id="export-mem-btn" type="button" onclick="toggleExportMemberFilter()" style="width:100%;padding:9px 10px;background:var(--wh);border:1px solid var(--bd2);border-radius:8px;font-size:12px;font-family:var(--f);cursor:pointer;color:var(--ink);text-align:left;display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <span id="export-mem-label">ทุกคน</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div id="export-mem-dropdown" style="display:none;position:absolute;top:calc(100%+4px);left:0;right:0;background:var(--wh);border:1.5px solid var(--bd2);border-radius:var(--rlg);box-shadow:var(--sh-lg);z-index:400;max-height:340px;overflow:hidden;flex-direction:column">
+        <div style="padding:8px 10px 6px;border-bottom:1px solid var(--bd);position:relative">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--ink3);pointer-events:none"><circle cx="6" cy="6" r="4.2" stroke="currentColor" stroke-width="1.3"/><path d="M9.2 9.2L12 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <input id="export-mem-search" placeholder="ค้นหาชื่อสมาชิก..." oninput="filterExportMemberList(this.value)" style="width:100%;padding:7px 8px 7px 28px;border:1px solid var(--bd2);border-radius:6px;font-size:11px;font-family:var(--f);color:var(--ink);background:var(--wh)" autocomplete="off">
+        </div>
+        <div style="padding:6px 12px;border-bottom:1px solid var(--bd);display:flex;gap:6px;flex-shrink:0">
+          <button type="button" onclick="selectAllExportMembers(true)" style="flex:1;padding:3px 0;border:1px solid var(--bd2);border-radius:5px;background:var(--bg);font-size:10px;cursor:pointer;font-family:var(--f);color:var(--ink2)">เลือกทั้งหมด</button>
+          <button type="button" onclick="selectAllExportMembers(false)" style="flex:1;padding:3px 0;border:1px solid var(--bd2);border-radius:5px;background:var(--bg);font-size:10px;cursor:pointer;font-family:var(--f);color:var(--ink2)">ล้างทั้งหมด</button>
+        </div>
+        <div id="export-mem-list" style="overflow-y:auto;flex:1"></div>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fg">
@@ -13205,6 +13383,39 @@ async function doExportExcel(){
   window.addEventListener('resize', showFAB);
   setInterval(showFAB, 800);
   setTimeout(showFAB, 100);
+
+  /* ★ v97: Smart number input behavior
+     ปัญหา: input value="0" ค้าง — user พิมพ์ "145" ได้ "0145"
+     วิธีแก้: 2 ลำดับ
+     1. on focus: ถ้าค่าเป็น "0" → เคลียร์เป็นว่าง (placeholder จะแสดง "0" แทน)
+     2. on input: ลบเลข 0 นำหน้าตอน user พิมพ์ (เผื่อ JS set value="0" ระหว่าง user พิมพ์)
+     ใช้ capture phase กับทุก input[type=number] */
+  document.addEventListener('focusin',function(e){
+    const t=e.target;
+    if(!t||t.tagName!=='INPUT'||t.type!=='number') return;
+    if(t.value==='0'||t.value==='0.00'||t.value==='0.0'){
+      t.dataset._wasZero='1';
+      t.value='';
+    }
+  },true);
+  document.addEventListener('focusout',function(e){
+    const t=e.target;
+    if(!t||t.tagName!=='INPUT'||t.type!=='number') return;
+    /* ถ้า user ไม่พิมพ์อะไร และเดิมเป็น 0 → คืนค่า 0 */
+    if(t.value===''&&t.dataset._wasZero==='1'){
+      t.value='0';
+    }
+    delete t.dataset._wasZero;
+  },true);
+  /* fallback: ลบเลข 0 นำหน้าทันทีถ้าหลุดมา */
+  document.addEventListener('input',function(e){
+    const t=e.target;
+    if(!t||t.tagName!=='INPUT'||t.type!=='number') return;
+    const v=t.value;
+    if(/^0\d/.test(v)){
+      t.value=v.replace(/^0+/,'') || '0';
+    }
+  },true);
 })();
 </script>
 
