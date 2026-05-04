@@ -2886,6 +2886,7 @@ Line: @somchai_jaidee
               <label class="fl">เบอร์</label>
               <div id="gcphone-tags" style="display:flex;flex-wrap:wrap;gap:4px;min-height:34px;padding:4px 8px;background:var(--wh);border:1px solid var(--bd2);border-radius:var(--r);align-items:center;cursor:text" onclick="document.getElementById('gcphone-inp').focus()">
                 <input id="gcphone-inp" maxlength="13" placeholder="กดพิมพ์เบอร์แล้ว Enter"
+                autocomplete="off" name="gcphone-inp-nofill" data-form-type="other"
                 onpaste="setTimeout(()=>{this.value=this.value.replace(/[-\s().]/g,'')},0)"
                   style="border:none;outline:none;background:transparent;font-size:12px;font-family:var(--f);width:180px;min-width:80px;color:var(--ink)"
                   oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"
@@ -2910,6 +2911,7 @@ Line: @somchai_jaidee
             <label class="fl">เบอร์</label>
             <div id="gcphone-new-tags" style="display:flex;flex-wrap:wrap;gap:4px;min-height:34px;padding:4px 8px;background:var(--wh);border:1px solid var(--bd2);border-radius:var(--r);align-items:center;cursor:text" onclick="document.getElementById('gcphone-new-inp').focus()">
               <input id="gcphone-new-inp" maxlength="13" placeholder="กดพิมพ์เบอร์แล้ว Enter"
+                autocomplete="off" name="gcphone-new-inp-nofill" data-form-type="other"
                 onpaste="setTimeout(()=>{this.value=this.value.replace(/[-\s().]/g,'')},0)"
                 style="border:none;outline:none;background:transparent;font-size:12px;font-family:var(--f);width:180px;min-width:80px;color:var(--ink)"
                 oninput="this.value=this.value.replace(/\D/g,'').slice(0,10)"
@@ -6102,7 +6104,8 @@ function renderMemberRows(){
     } else if(gigState.splitMode==='amt'){
       pctField=`<div id="gpct-${i}" style="width:90px;flex-shrink:0;text-align:right;font-size:12px;font-weight:700;color:var(--red);line-height:36px">฿0</div>`;
     } else {
-      pctField=`<div style="width:70px;flex-shrink:0;text-align:center;font-size:12px;font-weight:600;color:var(--red);line-height:36px" id="gpct-${i}">${equalPct}%</div>`;
+      /* ★ v97: equal mode — แสดงจำนวนเงิน (จะ update real-time ใน updateSummary) */
+      pctField=`<div style="width:90px;flex-shrink:0;text-align:right;font-size:12px;font-weight:700;color:var(--red);line-height:36px" id="gpct-${i}">฿0</div>`;
     }
     const bd=existingBd[i]||{fee:'',car:'',oil:'',ot:'',other:'',note:''};
     html+=`<div style="background:var(--bg);border-radius:10px;padding:10px;margin-bottom:8px">
@@ -6242,14 +6245,17 @@ function updateSummary(){
     const mem=S.members.find(x=>x.id==memId);
     let pct,amount;
     if(gigState.splitMode==='equal'){
-      pct=parseFloat((100/n).toFixed(2));
-      /* คนสุดท้ายได้ส่วนที่เหลือ ป้องกัน rounding error */
+      /* ★ v97: หารเป็นจำนวนเต็มบาท + เศษให้คนสุดท้าย */
+      const baseCut=Math.floor(netBase/n);
       if(i===n-1){
-        const sumPrev=rows.reduce((s,r)=>s+r.amount,0);
-        amount=netBase-sumPrev;
+        amount=r2(netBase-baseCut*(n-1));
       } else {
-        amount=r2(netBase*(pct/100));
+        amount=r2(baseCut);
       }
+      pct=netBase>0?r2(amount/netBase*100):0;
+      /* แสดงจำนวนเงินใน row label */
+      const pctEl=document.getElementById(`gpct-${i}`);
+      if(pctEl&&pctEl.tagName!=='INPUT') pctEl.textContent='฿'+f(amount);
       /* auto-fill ค่าตัว */
       const feeEl=document.getElementById(`gbd-fee-${i}`);
       if(feeEl&&(!feeEl.value||parseFloat(feeEl.value)===0||feeEl.dataset.autoFilled==='1')){
@@ -6281,7 +6287,8 @@ function updateSummary(){
   /* label แสดงสถานะ */
   let statusLabel='';
   if(gigState.splitMode==='equal'){
-    statusLabel=`<span style="color:var(--green);font-weight:600">100% ✓</span>`;
+    /* ★ v97: แสดงรวม = netBase ตรงเป๊ะ (ไม่มีเศษ) */
+    statusLabel=`<span style="color:var(--green);font-weight:600">฿${f(totalAmt)} / ฿${f(netBase)} ✓</span>`;
   } else if(gigState.splitMode==='pct'){
     const over=totalPct>100;
     statusLabel=`<span style="color:${over?'var(--red)':'var(--green)'};font-weight:600">${totalPct.toFixed(2)}% ${over?'⚠ เกิน':'✓'}</span>`;
@@ -6296,10 +6303,18 @@ function updateSummary(){
     </div>
     ${statusLabel}
   </div>`+
-    rows.map(r=>`<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:var(--ink2)">
+    rows.map((r,i)=>{
+      const isLast=gigState.splitMode==='equal'&&i===n-1&&n>1;
+      const baseCut=Math.floor(netBase/n);
+      const hasRemainder=gigState.splitMode==='equal'&&isLast&&(netBase-baseCut*n)!==0;
+      const tag=gigState.splitMode==='equal'
+        ? `<span style="color:var(--ink3);font-size:10px">${hasRemainder?'(หารเท่า +เศษ)':'(หารเท่า)'}</span>`
+        : `<span style="color:var(--ink3)">(${r.pct}%)</span>`;
+      return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:var(--ink2)">
       <span>${r.name}</span>
-      <span><strong style="color:var(--red)">฿${f(r.amount)}</strong> <span style="color:var(--ink3)">(${r.pct}%)</span></span>
-    </div>`).join('')+
+      <span><strong style="color:var(--red)">฿${f(r.amount)}</strong> ${tag}</span>
+    </div>`;
+    }).join('')+
     `<div style="border-top:1px solid var(--rb);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-size:11px;font-weight:600">
       <span style="color:var(--ink3)">รวมค่าตัวนักดนตรี</span>
       <span style="color:var(--red)">฿${f(totalAmt)}</span>
@@ -6615,7 +6630,7 @@ function editGig(id){
           const pi=document.getElementById('gpct-'+i);
           if(pi){
             if(gigState.splitMode==='pct') pi.value=mu.pct||0;
-            else if(gigState.splitMode==='equal') pi.textContent=Math.round(100/g.musicians.length)+'%';
+            /* ★ v97: equal mode — updateSummary จะเติม "฿XXX" ให้เอง ไม่ต้อง set ที่นี่ */
           }
         }
       });
@@ -8086,6 +8101,18 @@ function getMemberCut(g,mem){
   const mu=g.musicians.find(m=>String(m.memberId)===String(mem.id));if(!mu)return 0;
   /* mode amt: ใช้ fixedAmt โดยตรง ไม่ต้องคำนวณจาก pct */
   if((mu.splitMode||g.splitMode)==='amt'&&mu.fixedAmt>0) return r2(mu.fixedAmt);
+  /* ★ v97: mode equal — หารเป็นจำนวนเต็มบาท + เศษให้คนสุดท้าย
+     เช่น ฿10,000 หาร 3 → 3,333 / 3,333 / 3,334 (รวม 10,000 ตรง) */
+  if((mu.splitMode||g.splitMode)==='equal'){
+    const n=g.musicians.length;
+    const idx=g.musicians.findIndex(m=>String(m.memberId)===String(mem.id));
+    const baseCut=Math.floor(net/n);
+    if(idx===n-1){
+      /* คนสุดท้าย = net - baseCut * (n-1) */
+      return r2(net-baseCut*(n-1));
+    }
+    return r2(baseCut);
+  }
   return r2(net*(mu.pct/100));
 }
 function getGigPayStatus(g){
@@ -8838,18 +8865,58 @@ function toggleClientEdit(id){
   edit.style.display=isEditing?'none':'block';
 }
 
-function saveClientEdit(id){
+async function saveClientEdit(id){
   if(!requireAdmin('แก้ไขลูกค้า'))return;
   const cl=S.clients.find(x=>String(x.id)===String(id));if(!cl)return;
+  /* keep original ในกรณี rollback */
+  const original={phone:cl.phone,bankName:cl.bankName,bankNo:cl.bankNo,contact:cl.contact};
   cl.phone=document.getElementById('clm-phone-'+id)?.value.trim()||'';
   cl.bankName=document.getElementById('clm-bank-'+id)?.value.trim()||'';
   cl.bankNo=document.getElementById('clm-no-'+id)?.value.trim()||'';
   cl.contact=document.getElementById('clm-contact-'+id)?.value.trim()||'';
   renderClientMaster();
-  toast(`อัปเดต "${cl.name}" แล้ว`);
-  if(CLOUD_ENABLED()) fetch(`${SUPABASE_URL}/rest/v1/clients?id=eq.${cl.id}`,{method:'PATCH',headers:sbHeaders(),
-    body:JSON.stringify({phone:cl.phone||null,bank_name:cl.bankName||null,bank_no:cl.bankNo||null,contact:cl.contact||null})
-  }).catch(console.error);
+  /* ★ v97: await + verify response + แสดง error ชัดเจน */
+  if(CLOUD_ENABLED()){
+    try{
+      console.log('[SaveClient] PATCH client',cl.id,{phone:cl.phone,bank:cl.bankName,no:cl.bankNo});
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/clients?id=eq.${cl.id}`,{
+        method:'PATCH',headers:sbHeaders(),
+        body:JSON.stringify({phone:cl.phone||null,bank_name:cl.bankName||null,bank_no:cl.bankNo||null,contact:cl.contact||null})
+      });
+      const txt=await res.text();
+      console.log('[SaveClient] response',res.status,txt);
+      if(!res.ok){
+        /* rollback local */
+        cl.phone=original.phone;cl.bankName=original.bankName;cl.bankNo=original.bankNo;cl.contact=original.contact;
+        renderClientMaster();
+        if(res.status===401||res.status===403){
+          toast(`❌ ไม่มีสิทธิ์แก้ไข (RLS policy block) — ติดต่อแอดมิน`);
+        } else if(txt.includes('row-level security')){
+          toast(`❌ Supabase RLS block — ต้องเพิ่ม UPDATE policy ให้ clients table`);
+        } else {
+          toast(`❌ บันทึกไม่สำเร็จ: ${res.status} — ${txt.slice(0,80)}`);
+        }
+        return;
+      }
+      /* verify ว่า response มี data จริง (return=representation) */
+      let returned=null;
+      try{returned=JSON.parse(txt);}catch(e){}
+      if(!returned||!Array.isArray(returned)||returned.length===0){
+        cl.phone=original.phone;cl.bankName=original.bankName;cl.bankNo=original.bankNo;cl.contact=original.contact;
+        renderClientMaster();
+        toast(`❌ ไม่พบ client id=${cl.id} ใน Supabase — อาจเป็น client เก่าที่ยังไม่ sync`);
+        return;
+      }
+      toast(`✓ อัปเดต "${cl.name}" แล้ว`);
+    }catch(e){
+      console.error('[SaveClient] error',e);
+      cl.phone=original.phone;cl.bankName=original.bankName;cl.bankNo=original.bankNo;cl.contact=original.contact;
+      renderClientMaster();
+      toast(`❌ เชื่อมต่อ Supabase ไม่ได้: ${e.message||e}`);
+    }
+  } else {
+    toast(`✓ อัปเดต "${cl.name}" แล้ว (offline)`);
+  }
 }
 function openAddClient(){if(!requireAdmin('เพิ่มลูกค้า'))return;['cl-name','cl-phone','cl-bank-name','cl-bank-no','cl-contact'].forEach(i=>document.getElementById(i).value='');document.getElementById('mclient').classList.add('open');}
 function saveClient(){
