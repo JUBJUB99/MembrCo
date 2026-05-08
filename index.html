@@ -1680,6 +1680,12 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
           <option value="paid">จ่ายเต็ม</option>
           <option value="cancelled">ยกเลิกเท่านั้น</option>
         </select>
+        <select id="gig-filter-paystatus" class="chart-sel" style="padding:5px 8px;font-size:12px;height:30px" onchange="rg()">
+          <option value="">ทุกการจ่ายค่าตัว</option>
+          <option value="none">ยังไม่จ่าย</option>
+          <option value="part">จ่ายบางส่วน</option>
+          <option value="full">จ่ายครบทั้งวง</option>
+        </select>
         <select id="gig-filter-member" class="chart-sel" style="padding:5px 8px;font-size:12px;height:30px" onchange="rg()">
           <option value="">ทุกสมาชิก</option>
         </select>
@@ -3148,8 +3154,8 @@ Line: @somchai_jaidee
     <div class="fg">
       <label class="fl">ประเภทการรับเงิน</label>
       <div style="display:flex;gap:0;border:1px solid var(--bd2);border-radius:var(--r);overflow:hidden;height:36px">
-        <button id="recv-type-deposit-btn" onclick="setRecvType('deposit')" style="flex:1;border:none;background:var(--red);color:#fff;font-family:var(--f);font-size:12px;font-weight:500;cursor:pointer;transition:all .12s">มัดจำ</button>
-        <button id="recv-type-full-btn" onclick="setRecvType('full')" style="flex:1;border:none;background:var(--wh);color:var(--ink3);font-family:var(--f);font-size:12px;cursor:pointer;transition:all .12s">รับเต็ม</button>
+        <button id="recv-type-deposit-btn" onclick="setRecvType('deposit',true)" style="flex:1;border:none;background:var(--red);color:#fff;font-family:var(--f);font-size:12px;font-weight:500;cursor:pointer;transition:all .12s">มัดจำ</button>
+        <button id="recv-type-full-btn" onclick="setRecvType('full',true)" style="flex:1;border:none;background:var(--wh);color:var(--ink3);font-family:var(--f);font-size:12px;cursor:pointer;transition:all .12s">รับเต็ม</button>
       </div>
     </div>
     <div class="fr">
@@ -4981,6 +4987,7 @@ function rg(){
   const filterMonth=document.getElementById('gig-filter-month')?.value||'';
   const filterYear=document.getElementById('gig-filter-year')?.value||'';
   const filterMember=document.getElementById('gig-filter-member')?.value||'';
+  const filterPayStatus=document.getElementById('gig-filter-paystatus')?.value||'';
   const sortDir=document.getElementById('gig-sort')?.value||'new';
   const filterDateFrom=document.getElementById('gig-filter-date-from')?.value||'';
   const filterDateTo=document.getElementById('gig-filter-date-to')?.value||'';
@@ -5021,6 +5028,17 @@ function rg(){
   if(filterDateTo)   list=list.filter(g=>g.date&&g.date<=filterDateTo);
   /* filter สมาชิก */
   if(filterMember) list=list.filter(g=>g.musicians&&g.musicians.some(mu=>String(mu.memberId)===filterMember));
+  /* ★ v97: filter จ่ายค่าตัว (none/part/full) */
+  if(filterPayStatus){
+    list=list.filter(g=>{
+      if(g.status==='cancelled') return false;
+      const ps=getGigPayStatus(g);
+      if(filterPayStatus==='none') return ps.label==='ยังไม่จ่าย';
+      if(filterPayStatus==='part') return ps.label==='จ่ายบางส่วน';
+      if(filterPayStatus==='full') return ps.label==='จ่ายครบทั้งวง';
+      return true;
+    });
+  }
   /* sort */
   if(_gigSortCol){
     /* ★ v95: column header sort */
@@ -5126,7 +5144,14 @@ function rg(){
         if(!mus.length) return '<span class="sp-dash">—</span>';
         const nicks=mus.map(mu=>{
           const mem=S.members.find(x=>String(x.id)===String(mu.memberId));
-          return mem?`<span class="sp-mem-chip">${esc(mem.nick)}</span>`:'';
+          if(!mem){
+            /* ★ v97 debug: log แต่ละ case ที่หาไม่เจอ */
+            if(mu.memberId) console.warn('[GigOverview] Missing member id=',mu.memberId,'in gig',g.name,'(id='+g.id+')',
+              ' | S.members ids=',S.members.map(m=>m.id));
+            /* แสดง dash แทน blank */
+            return mu.memberId?`<span class="sp-mem-chip" style="opacity:.5" title="สมาชิก id ${mu.memberId} ไม่พบในระบบ">?</span>`:'';
+          }
+          return `<span class="sp-mem-chip">${esc(mem.nick||'?')}</span>`;
         }).filter(Boolean).join('');
         return `<div class="sp-mem-chips">${nicks}</div>`;
       })()}</td>
@@ -5148,7 +5173,7 @@ function rg(){
   if(filterBadge){
     const totalActive=S.gigs.filter(g=>g.status!=='cancelled').length;
     const listNoCancelled=list.filter(g=>g.status!=='cancelled').length;
-    const isFiltered=listNoCancelled<totalActive||search||filterMonth||filterYear||filterMember||filterDateFrom||filterDateTo||(filterSt&&filterSt!=='active');
+    const isFiltered=listNoCancelled<totalActive||search||filterMonth||filterYear||filterMember||filterPayStatus||filterDateFrom||filterDateTo||(filterSt&&filterSt!=='active');
     filterBadge.textContent=isFiltered?`${listNoCancelled} / ${totalActive} งาน`:`${totalActive} งาน`;
     filterBadge.style.display='inline-block';
     filterBadge.style.background=isFiltered?'var(--red)':'var(--ink)';
@@ -7623,7 +7648,9 @@ function openRecv(gigId){
   document.getElementById('recv-note').value='';
   document.getElementById('recv-status-preview').style.display='none';
   clearRecvSlip(); /* reset drag zone */
-  setRecvType(remain<=0?'full':'deposit');
+  /* ★ v97: reset manual flag — ใหม่ทุกครั้ง เริ่มที่ full + auto switch ถ้ายอดน้อยกว่า */
+  gigState._recvTypeManual=false;
+  setRecvType('full');
   document.getElementById('modal-recv').classList.add('open');
   /* แสดง/ซ่อนปุ่มบันทึกตาม role */
   const recvSaveBtn=document.getElementById('modal-recv-save-btn');
@@ -7633,7 +7660,10 @@ function openRecv(gigId){
   const recvAmount=document.getElementById('recv-amount');
   if(recvAmount) recvAmount.disabled=!isAdminUser;
 }
-function setRecvType(t){
+function setRecvType(t,manual){
+  /* ★ v97: track ว่า user กดเองหรือ auto */
+  gigState._recvType=t;
+  if(manual) gigState._recvTypeManual=true;
   document.getElementById('recv-type-deposit-btn').style.background=t==='deposit'?'var(--red)':'var(--wh)';
   document.getElementById('recv-type-deposit-btn').style.color=t==='deposit'?'#fff':'var(--ink3)';
   document.getElementById('recv-type-full-btn').style.background=t==='full'?'var(--red)':'var(--wh)';
@@ -7663,7 +7693,16 @@ function updateRecvStatus(){
   }
   if(amtEl) amtEl.style.outline='';
   if(saveBtn) saveBtn.disabled=false;
-  const t=gigState._recvType||'deposit';
+  /* ★ v97: auto switch full→deposit ถ้ายอดน้อยกว่า remaining (เฉพาะที่ user ยังไม่กดเลือกเอง) */
+  if(!gigState._recvTypeManual&&amount>0&&amount<remaining&&gigState._recvType==='full'){
+    gigState._recvType='deposit';
+    /* update button UI โดยไม่ trigger updateRecvStatus loop */
+    document.getElementById('recv-type-deposit-btn').style.background='var(--red)';
+    document.getElementById('recv-type-deposit-btn').style.color='#fff';
+    document.getElementById('recv-type-full-btn').style.background='var(--wh)';
+    document.getElementById('recv-type-full-btn').style.color='var(--ink3)';
+  }
+  const t=gigState._recvType||'full';
   let newStatus='deposit',msg='';
   const clientIncome2=totalDue;
   if(t==='full'||totalAfter>=clientIncome2){newStatus='paid';msg=`✓ สถานะจะเปลี่ยนเป็น "จ่ายเต็ม" (รับครบ ฿${f(clientIncome2)})`;}
