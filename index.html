@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>MembrCo V1.0.3 — Member Management</title>
+<title>MembrCo V1.0.4 — Member Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1338,7 +1338,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
     <div class="login-logo">
       <div class="login-mark">M<span>.</span></div>
       <div class="login-logo-name">Membr<span>Co</span></div>
-      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.3</span></div>
+      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.4</span></div>
     </div>
     <!-- Tabs -->
     <div class="ltabs">
@@ -1442,7 +1442,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <div class="sb-logo-mark">M<span>.</span></div>
         <div style="min-width:0">
           <div class="sb-logo-name">Membr<span style="color:var(--sb-accent)">Co</span></div>
-          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.3</span></div>
+          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.4</span></div>
         </div>
       </div>
       <!-- ปุ่มซ่อน sidebar — แสดงเฉพาะ mobile -->
@@ -3616,15 +3616,37 @@ async function loadFromCloud() {
     let gigMusicians=[], gigPayments=[], gigMemberPays=[], gigIncomeItems=[], gigExpenses=[];
 
     if(gigIds.length>0){
-      const ids=gigIds.join(',');
-      [gigMusicians, gigPayments, gigMemberPays, gigIncomeItems, gigExpenses] = await Promise.all([
-        sbGet('gig_musicians',    `gig_id=in.(${ids})`),
-        sbGet('gig_payments',     `gig_id=in.(${ids})`),
-        sbGet('member_payments',  `gig_id=in.(${ids})`),
-        sbGet('gig_income_items', `gig_id=in.(${ids})`),
-        sbGet('gig_expenses',     `gig_id=in.(${ids})`)
-      ]);
-      console.log('loadFromCloud: musicians=',gigMusicians?.length,'payments=',gigPayments?.length);
+      /* ★ v97 CRITICAL FIX: batch query — Supabase URL limit 8KB
+         264 gigs × 37 chars (UUID) ≈ 9.7KB → URL truncate → ดึง musicians ไม่ครบ → สมาชิกหาย!
+         วิธีแก้: ส่ง query เป็นชุดละ BATCH_SIZE แล้วรวมผลลัพธ์ */
+      const BATCH_SIZE=80;
+      const batches=[];
+      for(let i=0;i<gigIds.length;i+=BATCH_SIZE){
+        batches.push(gigIds.slice(i,i+BATCH_SIZE));
+      }
+      console.log(`[Load] gig_ids=${gigIds.length} → batch ${batches.length} ชุด (ชุดละ ${BATCH_SIZE})`);
+      /* query ทุก batch + ทุก child table แบบ parallel */
+      const allResults=await Promise.all(
+        batches.map(batch=>{
+          const ids=batch.join(',');
+          return Promise.all([
+            sbGet('gig_musicians',    `gig_id=in.(${ids})`),
+            sbGet('gig_payments',     `gig_id=in.(${ids})`),
+            sbGet('member_payments',  `gig_id=in.(${ids})`),
+            sbGet('gig_income_items', `gig_id=in.(${ids})`),
+            sbGet('gig_expenses',     `gig_id=in.(${ids})`)
+          ]);
+        })
+      );
+      /* รวมผลทุก batch */
+      allResults.forEach(([m,p,mp,ii,e])=>{
+        if(m) gigMusicians.push(...m);
+        if(p) gigPayments.push(...p);
+        if(mp) gigMemberPays.push(...mp);
+        if(ii) gigIncomeItems.push(...ii);
+        if(e) gigExpenses.push(...e);
+      });
+      console.log('loadFromCloud: musicians=',gigMusicians.length,'payments=',gigPayments.length);
     }
 
     /* Map to S object shape */
@@ -3735,8 +3757,13 @@ function mapMember(m) {
 ══════════════════════════════════════ */
 
 /* Sync gig (upsert gig + children) */
+/* ★ v97: Global flag กัน logout ระหว่าง sync ทำงาน
+   ป้องกันเคส: user กด save → logout ระหว่าง syncGig → DELETE สำเร็จ + INSERT fail → DB ว่าง */
+let _syncInProgress=0;
+
 async function syncGig(gig) {
   if(!SUPABASE_URL || !_sbBandId) { console.warn('syncGig: no session'); return; }
+  _syncInProgress++;
   try {
     const isNew = typeof gig.id === 'number';
     const isUUID = v => typeof v==='string' && /^[0-9a-f-]{36}$/.test(v);
@@ -3939,6 +3966,7 @@ async function syncGig(gig) {
     }
 
   } catch(e) { console.error('❌ syncGig exception:', e); toast('⚠ บันทึกขึ้น Cloud ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต'); }
+  finally { _syncInProgress=Math.max(0,_syncInProgress-1); }
 }
 
 /* Sync single gig_payment (รับเงิน) */
@@ -9842,14 +9870,29 @@ async function reloadGigsFromCloud(byUser){
     let newMusicians=[],newPayments=[],newMemberPays=[],newIncomeItems=[],newExpenses=[];
     if(newGigIds.length){
       console.log('[Realtime] 🆕 เจอ gigs ใหม่',newGigIds.length,'งาน — ดึง child tables');
-      const ids=newGigIds.join(',');
-      [newMusicians,newPayments,newMemberPays,newIncomeItems,newExpenses]=await Promise.all([
-        sbGet('gig_musicians',    `gig_id=in.(${ids})`).catch(()=>[]),
-        sbGet('gig_payments',     `gig_id=in.(${ids})`).catch(()=>[]),
-        sbGet('member_payments',  `gig_id=in.(${ids})`).catch(()=>[]),
-        sbGet('gig_income_items', `gig_id=in.(${ids})`).catch(()=>[]),
-        sbGet('gig_expenses',     `gig_id=in.(${ids})`).catch(()=>[])
-      ]);
+      /* ★ v97: batch query กัน URL limit */
+      const BATCH_SIZE=80;
+      const batches=[];
+      for(let i=0;i<newGigIds.length;i+=BATCH_SIZE){batches.push(newGigIds.slice(i,i+BATCH_SIZE));}
+      const allResults=await Promise.all(
+        batches.map(batch=>{
+          const ids=batch.join(',');
+          return Promise.all([
+            sbGet('gig_musicians',    `gig_id=in.(${ids})`).catch(()=>[]),
+            sbGet('gig_payments',     `gig_id=in.(${ids})`).catch(()=>[]),
+            sbGet('member_payments',  `gig_id=in.(${ids})`).catch(()=>[]),
+            sbGet('gig_income_items', `gig_id=in.(${ids})`).catch(()=>[]),
+            sbGet('gig_expenses',     `gig_id=in.(${ids})`).catch(()=>[])
+          ]);
+        })
+      );
+      allResults.forEach(([m,p,mp,ii,e])=>{
+        if(m) newMusicians.push(...m);
+        if(p) newPayments.push(...p);
+        if(mp) newMemberPays.push(...mp);
+        if(ii) newIncomeItems.push(...ii);
+        if(e) newExpenses.push(...e);
+      });
     }
     S.gigs=gigRows.map(g=>{
       const ex=S.gigs.find(x=>String(x.id)===String(g.id));
@@ -10538,7 +10581,21 @@ let _resetToken=null;
   },500);
 })();
 
-function doLogout(){
+async function doLogout(){
+  /* ★ v97: ถ้ามี sync ทำงานอยู่ → รอ + เตือน user
+     ป้องกันเคสปัญหา: user กด save → logout ทันที → DELETE สำเร็จ + INSERT fail → DB ว่าง */
+  if(_syncInProgress>0){
+    if(!confirm('⏳ ระบบกำลังบันทึกข้อมูล — กรุณารอสักครู่\n\nกด OK เพื่อรอจนเสร็จ\nกด Cancel เพื่อยกเลิกการ Logout')) return;
+    /* รอจนกว่า _syncInProgress = 0 (max 15 วิ) */
+    let waited=0;
+    while(_syncInProgress>0&&waited<15000){
+      await new Promise(r=>setTimeout(r,200));
+      waited+=200;
+    }
+    if(_syncInProgress>0){
+      if(!confirm('⚠️ การบันทึกใช้เวลานานกว่าปกติ\n\nกด OK เพื่อ Logout เลย (ข้อมูลที่ค้างอาจหาย!)\nกด Cancel เพื่อรอต่อ')) return;
+    }
+  }
   currentUser=null;
   sbSignOut();
   _sbToken=null; _sbBandId=null;
