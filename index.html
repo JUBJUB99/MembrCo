@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>MembrCo V1.0.2 — Member Management</title>
+<title>MembrCo V1.0.3 — Member Management</title>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1338,7 +1338,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
     <div class="login-logo">
       <div class="login-mark">M<span>.</span></div>
       <div class="login-logo-name">Membr<span>Co</span></div>
-      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.2</span></div>
+      <div class="login-logo-sub"><span>Member Management</span><span class="v-pill">V1.0.3</span></div>
     </div>
     <!-- Tabs -->
     <div class="ltabs">
@@ -1442,7 +1442,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <div class="sb-logo-mark">M<span>.</span></div>
         <div style="min-width:0">
           <div class="sb-logo-name">Membr<span style="color:var(--sb-accent)">Co</span></div>
-          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.2</span></div>
+          <div class="sb-logo-sub">Member Management <span class="v-badge">V1.0.3</span></div>
         </div>
       </div>
       <!-- ปุ่มซ่อน sidebar — แสดงเฉพาะ mobile -->
@@ -3066,6 +3066,7 @@ Line: @somchai_jaidee
 
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-o" onclick="closeGigModal()">ยกเลิก</button>
+      <button class="btn" id="gig-repair-btn" onclick="repairGigMusicians()" style="display:none;padding:8px 16px;font-size:13px;font-weight:600;background:#F59E0B;color:#fff;border:none">🔧 ซ่อม Musicians</button>
       <button class="btn btn-r" onclick="sg()" style="padding:8px 28px;font-size:13px;font-weight:600">💾 บันทึก</button>
     </div>
   </div>
@@ -3862,6 +3863,11 @@ async function syncGig(gig) {
        กันเคสที่ DELETE สำเร็จ + INSERT fail → DB ว่าง */
     if(rawMus.length>0&&resolvedMus.length===0){
       console.warn('[syncGig] ⚠️ ทุก musicians resolve UUID ไม่ได้ — skip DELETE+INSERT');
+    } else if(rawMus.length===0){
+      /* ★ v97 CRITICAL: ถ้า memory ไม่มี musicians เลย → อย่าลบ DB!
+         เคสปัญหา: refresh แล้ว loadFromCloud ดึง musicians ไม่ทัน → S.gigs[i].musicians=[]
+         แล้ว user กดบันทึกอะไรก็ตาม (เช่น recv) → syncGig จะ DELETE หมด → ข้อมูลใน DB หายเลย */
+      console.warn('[syncGig] ⚠️ memory ไม่มี musicians — skip DELETE เพื่อกันข้อมูลหาย gig=',dbId);
     } else {
       /* DELETE ของเก่าก่อน */
       const delRes=await fetch(`${SUPABASE_URL}/rest/v1/gig_musicians?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
@@ -3901,7 +3907,6 @@ async function syncGig(gig) {
     }
 
     /* Income items */
-    await fetch(`${SUPABASE_URL}/rest/v1/gig_income_items?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
     const inc=gig.income||{};
     /* map camelCase keys ที่ไม่ตรงกับ category name ใน DB */
     const _incAmt=k=>k==='tip_total'?(inc.tipTotal||0):k==='discount'?(inc.discount||0):(inc[k]||0);
@@ -3912,15 +3917,26 @@ async function syncGig(gig) {
     if(inc.otherNote&&(inc.other||0)<=0&&!incRows.find(r=>r.category==='other')){
       incRows.push({gig_id:dbId,category:'other',amount:0,note:inc.otherNote});
     }
-    if(incRows.length) await sbInsert('gig_income_items', incRows);
+    /* ★ v97 CRITICAL: ถ้า memory ไม่มี income → อย่าลบ DB กันข้อมูลหาย */
+    if(incRows.length>0||(inc.tipTotal||0)>0||Object.keys(inc).length>0){
+      await fetch(`${SUPABASE_URL}/rest/v1/gig_income_items?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
+      if(incRows.length) await sbInsert('gig_income_items', incRows);
+    } else {
+      console.warn('[syncGig] ⚠️ memory ไม่มี income — skip DELETE income items');
+    }
 
     /* Gig expenses — save as JSON in other_note field, preserve backward compat */
     const exp=gig.expenses||{};
-    await fetch(`${SUPABASE_URL}/rest/v1/gig_expenses?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
     const expRows=exp.expenseRows||[];
-    const totalExp=expRows.reduce((s,r)=>s+(r.fee||0),0);
-    const expNote=expRows.length?JSON.stringify(expRows):null;
-    await sbInsert('gig_expenses',{gig_id:dbId,sound_fee:0,sound_member_id:null,ads_fee:0,ads_channel:null,other_fee:totalExp,other_note:expNote});
+    /* ★ v97 CRITICAL: ถ้า memory ไม่มี expenses → อย่าลบ DB กันข้อมูลหาย */
+    if(expRows.length>0||(exp.soundFee||0)>0||(exp.adsFee||0)>0||(exp.otherFee||0)>0){
+      await fetch(`${SUPABASE_URL}/rest/v1/gig_expenses?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
+      const totalExp=expRows.reduce((s,r)=>s+(r.fee||0),0);
+      const expNote=expRows.length?JSON.stringify(expRows):null;
+      await sbInsert('gig_expenses',{gig_id:dbId,sound_fee:0,sound_member_id:null,ads_fee:0,ads_channel:null,other_fee:totalExp,other_note:expNote});
+    } else {
+      console.warn('[syncGig] ⚠️ memory ไม่มี expenses — skip DELETE expenses');
+    }
 
   } catch(e) { console.error('❌ syncGig exception:', e); toast('⚠ บันทึกขึ้น Cloud ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต'); }
 }
@@ -6744,6 +6760,12 @@ function editGig(id){
   const isCancelledLock=g.status==='cancelled';
   const isLocked=isPaidLock||isCancelledLock;
   const mgigEl=document.getElementById('mgig');
+  /* ★ v97 emergency: ปุ่มซ่อม musicians — แสดงเฉพาะตอน lock + มี musicians ใน memory */
+  const repairBtn=document.getElementById('gig-repair-btn');
+  if(repairBtn){
+    repairBtn.style.display=(isLocked&&g.musicians&&g.musicians.length>0)?'':'none';
+    repairBtn.dataset.gigId=g.id;
+  }
   if(isLocked){
     mgigEl.classList.add('gig-locked');
     document.getElementById('mgig-t').textContent=isCancelledLock
@@ -6752,12 +6774,12 @@ function editGig(id){
     /* ซ่อนปุ่มบันทึก */
     const saveBtn=mgigEl.querySelector('[onclick="sg()"]');
     if(saveBtn)saveBtn.style.display='none';
-    /* disable ทุก input/select/textarea/button ใน modal ยกเว้นปุ่มปิด/ยกเลิก */
+    /* disable ทุก input/select/textarea/button ใน modal ยกเว้นปุ่มปิด/ยกเลิก/ซ่อม */
     setTimeout(()=>{
       mgigEl.querySelectorAll('input,select,textarea,button').forEach(el=>{
         const oc=el.getAttribute('onclick')||'';
-        /* ★ ข้ามปุ่มปิด/ยกเลิก ให้ user กดได้เสมอแม้ modal lock */
-        if(oc==='cx(\'mgig\')'||oc==='closeGigModal()') return;
+        /* ★ ข้ามปุ่มปิด/ยกเลิก/ซ่อม ให้ user กดได้เสมอแม้ modal lock */
+        if(oc==='cx(\'mgig\')'||oc==='closeGigModal()'||oc==='repairGigMusicians()') return;
         el.disabled=true;
         el.style.pointerEvents='none';
         el.style.opacity='.55';
@@ -6777,6 +6799,57 @@ function editGig(id){
     },300);
   }
 }
+async function repairGigMusicians(){
+  const gigId=document.getElementById('gig-repair-btn')?.dataset?.gigId;
+  if(!gigId){toast('ไม่พบ gig id');return;}
+  const g=S.gigs.find(x=>String(x.id)===String(gigId));
+  if(!g){toast('ไม่พบงาน');return;}
+  if(!g.musicians||!g.musicians.length){toast('⚠️ ไม่มี musicians ใน memory ให้ซ่อม');return;}
+  if(!confirm(`ซ่อม musicians ของงาน "${g.name}"?\n\nระบบจะ INSERT musicians (${g.musicians.length} คน) กลับเข้า DB`))return;
+  const repairBtn=document.getElementById('gig-repair-btn');
+  if(repairBtn){repairBtn.disabled=true;repairBtn.textContent='⏳ กำลังซ่อม...';}
+  try{
+    /* ตรวจ DB ก่อนว่าว่างจริงไหม */
+    const existing=await sbGet('gig_musicians',`gig_id=eq.${g.id}`);
+    if(existing&&existing.length>0){
+      toast(`⚠️ DB มี musicians อยู่แล้ว ${existing.length} คน — ไม่ซ่อม`);
+      return;
+    }
+    /* resolve member ids ก่อน */
+    const isUUID=v=>typeof v==='string'&&/^[0-9a-f-]{36}$/.test(v);
+    const resolvedMus=[];
+    for(const m of g.musicians){
+      let memberId=m.memberId;
+      if(!isUUID(String(memberId))){
+        const localMem=S.members.find(x=>String(x.id)===String(memberId));
+        if(localMem&&isUUID(String(localMem.id))) memberId=localMem.id;
+      }
+      if(!isUUID(String(memberId))){
+        console.warn('[repair] skip member: cannot resolve',m);continue;
+      }
+      resolvedMus.push({...m,memberId});
+    }
+    if(!resolvedMus.length){toast('❌ resolve member id ไม่ได้เลย');return;}
+    const insRes=await sbInsert('gig_musicians',resolvedMus.map(m=>({
+      gig_id:g.id,member_id:m.memberId,pct:m.pct,
+      split_mode:m.splitMode||'equal',
+      fixed_amt:m.fixedAmt||0,
+      bd_fee:m.breakdown?.fee||0,bd_travel:m.breakdown?.travel||0,
+      bd_oil:m.breakdown?.oil||0,bd_overtime:m.breakdown?.overtime||0,
+      bd_tip:m.breakdown?.tip||0,bd_other:m.breakdown?.other||0,
+      bd_other_note:m.breakdown?.otherNote||''
+    })));
+    if(insRes===null){toast('❌ ซ่อมไม่สำเร็จ — ดู Console');return;}
+    toast(`✅ ซ่อมสำเร็จ ${resolvedMus.length} คน`);
+    closeGigModal();rg();
+  }catch(e){
+    console.error('[repair]',e);
+    toast('❌ Error: '+(e.message||e));
+  }finally{
+    if(repairBtn){repairBtn.disabled=false;repairBtn.textContent='🔧 ซ่อม Musicians';}
+  }
+}
+
 async function sg(){
   if(!requireAdmin('บันทึกงาน'))return;
   /* ป้องกัน double save */
