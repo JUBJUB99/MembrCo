@@ -3821,22 +3821,84 @@ async function syncGig(gig) {
     }
     if(!dbId) return;
 
-    /* Musicians — only include rows with valid UUID member_id */
-    await fetch(`${SUPABASE_URL}/rest/v1/gig_musicians?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
-    const validMus=(gig.musicians||[]).filter(m=>isUUID(String(m.memberId)));
-    if(validMus.length)
-      await sbInsert('gig_musicians', validMus.map(m=>({
-        gig_id:dbId, member_id:m.memberId, pct:m.pct,
-        split_mode:m.splitMode||'equal',
-        fixed_amt:m.fixedAmt||0,
-        bd_fee:m.breakdown?.fee||0,
-        bd_travel:m.breakdown?.travel||0,
-        bd_oil:m.breakdown?.oil||0,
-        bd_overtime:m.breakdown?.overtime||0,
-        bd_tip:m.breakdown?.tip||0,
-        bd_other:m.breakdown?.other||0,
-        bd_other_note:m.breakdown?.otherNote||''
-      })));
+    /* Musicians — sync any unsaved members first, resolve numeric ids to UUIDs */
+    /* ★ v97: Bug fix #1 + #3 — ก่อนกรอง UUID, sync member ที่ยังไม่ sync ก่อน
+       เคสปัญหา 1: user เพิ่ม member ใหม่ + เพิ่มในงาน + save ทันที →
+                  member.id ยังเป็น number → filter ทิ้งหมด → musicians หาย
+       เคสปัญหา 3: DELETE สำเร็จ + INSERT fail (เช่น user logout ก่อน done)
+                  → DB ว่าง → refresh แล้วหาย
+       วิธีแก้: resolve ids ก่อน DELETE, ถ้า resolve ไม่ได้เลย → skip (เก็บของเดิม) */
+    const rawMus=gig.musicians||[];
+    const resolvedMus=[];
+    for(const m of rawMus){
+      let memberId=m.memberId;
+      if(!isUUID(String(memberId))){
+        /* หา member ใน S.members จาก memberId เดิม */
+        const localMem=S.members.find(x=>String(x.id)===String(memberId));
+        if(localMem){
+          /* ถ้า localMem.id ตอนนี้เป็น UUID แล้ว (sync เสร็จไปแล้ว) → ใช้เลย */
+          if(isUUID(String(localMem.id))){
+            memberId=localMem.id;
+          } else {
+            /* ★ ยังเป็น number → sync member ก่อน รอให้ id อัพเดตเป็น UUID */
+            console.log('[syncGig] member id ยังเป็น number — sync ก่อน:',localMem.name);
+            try{ await syncMember(localMem); }catch(e){console.warn('syncMember during gig sync failed',e);}
+            /* หลัง syncMember, S.members[i].id ควรเป็น UUID แล้ว */
+            const refresh=S.members.find(x=>x===localMem||(x.name===localMem.name&&x.nick===localMem.nick));
+            if(refresh&&isUUID(String(refresh.id))) memberId=refresh.id;
+          }
+        }
+      }
+      /* ถ้ายัง resolve ไม่ได้ → log + skip */
+      if(!isUUID(String(memberId))){
+        console.warn('[syncGig] ❌ skip member: cannot resolve to UUID',m);
+        continue;
+      }
+      /* update mu.memberId ใน local ด้วย เพื่อ render ครั้งหน้าใช้ id ใหม่ */
+      m.memberId=memberId;
+      resolvedMus.push({...m,memberId});
+    }
+    /* ★ Safety check: ถ้ามี musicians ใน local แต่ resolve ไม่ได้เลย → ไม่ทำอะไร (เก็บของเดิมใน DB)
+       กันเคสที่ DELETE สำเร็จ + INSERT fail → DB ว่าง */
+    if(rawMus.length>0&&resolvedMus.length===0){
+      console.warn('[syncGig] ⚠️ ทุก musicians resolve UUID ไม่ได้ — skip DELETE+INSERT');
+    } else {
+      /* DELETE ของเก่าก่อน */
+      const delRes=await fetch(`${SUPABASE_URL}/rest/v1/gig_musicians?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
+      if(!delRes.ok){
+        console.error('[syncGig] ❌ DELETE gig_musicians failed — skip INSERT to prevent data loss',delRes.status);
+      } else if(resolvedMus.length){
+        const insRes=await sbInsert('gig_musicians', resolvedMus.map(m=>({
+          gig_id:dbId, member_id:m.memberId, pct:m.pct,
+          split_mode:m.splitMode||'equal',
+          fixed_amt:m.fixedAmt||0,
+          bd_fee:m.breakdown?.fee||0,
+          bd_travel:m.breakdown?.travel||0,
+          bd_oil:m.breakdown?.oil||0,
+          bd_overtime:m.breakdown?.overtime||0,
+          bd_tip:m.breakdown?.tip||0,
+          bd_other:m.breakdown?.other||0,
+          bd_other_note:m.breakdown?.otherNote||''
+        })));
+        if(insRes===null){
+          console.error('[syncGig] ⚠️ INSERT gig_musicians fail — DB now has 0 musicians for this gig!',dbId);
+          /* ลอง retry อีก 1 ครั้ง */
+          console.log('[syncGig] retrying gig_musicians INSERT...');
+          await sbInsert('gig_musicians', resolvedMus.map(m=>({
+            gig_id:dbId, member_id:m.memberId, pct:m.pct,
+            split_mode:m.splitMode||'equal',
+            fixed_amt:m.fixedAmt||0,
+            bd_fee:m.breakdown?.fee||0,
+            bd_travel:m.breakdown?.travel||0,
+            bd_oil:m.breakdown?.oil||0,
+            bd_overtime:m.breakdown?.overtime||0,
+            bd_tip:m.breakdown?.tip||0,
+            bd_other:m.breakdown?.other||0,
+            bd_other_note:m.breakdown?.otherNote||''
+          })));
+        }
+      }
+    }
 
     /* Income items */
     await fetch(`${SUPABASE_URL}/rest/v1/gig_income_items?gig_id=eq.${dbId}`,{method:'DELETE',headers:sbHeaders({'Prefer':''})});
@@ -8081,7 +8143,7 @@ async function viewSlip(src){
   }
   if(modal){modal.style.display='flex';modal.classList.add('open');}
 }
-function saveRecv(){
+async function saveRecv(){
   if(!requireAdmin('บันทึกรับเงิน'))return;
   const gigId=document.getElementById('recv-gig-id').value;
   const amount=parseFloat(document.getElementById('recv-amount').value)||0;
@@ -8118,8 +8180,24 @@ function saveRecv(){
     /* ถ้า totalPaid===0 ไม่ควรเกิดเพราะเราเพิ่ง push payment */
   }
   const isFullyPaid=g.status==='paid';
-  if(CLOUD_ENABLED()) syncGig(g).catch(console.error);
-  if(CLOUD_ENABLED()) syncPayment(g.id, newPay).catch(console.error);
+  /* ★ v97 BUG FIX: await sync ก่อนปิด modal/แสดง toast
+     เคสปัญหา: user กด save → logout ทันที → in-flight syncGig fail
+     เพราะ _sbToken ถูก clear → DELETE gig_musicians สำเร็จ แต่ INSERT fail
+     → DB ว่าง → refresh แล้วสมาชิกหาย */
+  if(CLOUD_ENABLED()){
+    /* แสดง toast loading ระหว่างรอ */
+    const saveBtn=document.getElementById('modal-recv-save-btn');
+    if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='กำลังบันทึก...';}
+    try{
+      /* sync gig + payment พร้อมกัน (parallel) — เร็วขึ้น */
+      await Promise.all([
+        syncGig(g).catch(e=>{console.error('syncGig in saveRecv',e);}),
+        syncPayment(g.id, newPay).catch(e=>{console.error('syncPayment in saveRecv',e);})
+      ]);
+    }finally{
+      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 บันทึก';}
+    }
+  }
   cx('modal-recv');
   rg();rd();updateGigTabCounts();
   if(isFullyPaid){
@@ -9684,12 +9762,73 @@ async function reloadGigsFromCloud(byUser){
   try{
     const gigRows=await sbGet('gigs',`band_id=eq.${_sbBandId}&order=date.desc`);
     if(!gigRows) return;
+    /* ★ v97: Bug fix #2 — หา gigs ใหม่ที่ local ไม่เคยมี → ดึง child tables ของ gig เหล่านั้น */
+    const newGigIds=gigRows
+      .map(g=>g.id)
+      .filter(id=>!S.gigs.find(x=>String(x.id)===String(id)));
+    let newMusicians=[],newPayments=[],newMemberPays=[],newIncomeItems=[],newExpenses=[];
+    if(newGigIds.length){
+      console.log('[Realtime] 🆕 เจอ gigs ใหม่',newGigIds.length,'งาน — ดึง child tables');
+      const ids=newGigIds.join(',');
+      [newMusicians,newPayments,newMemberPays,newIncomeItems,newExpenses]=await Promise.all([
+        sbGet('gig_musicians',    `gig_id=in.(${ids})`).catch(()=>[]),
+        sbGet('gig_payments',     `gig_id=in.(${ids})`).catch(()=>[]),
+        sbGet('member_payments',  `gig_id=in.(${ids})`).catch(()=>[]),
+        sbGet('gig_income_items', `gig_id=in.(${ids})`).catch(()=>[]),
+        sbGet('gig_expenses',     `gig_id=in.(${ids})`).catch(()=>[])
+      ]);
+    }
     S.gigs=gigRows.map(g=>{
       const ex=S.gigs.find(x=>String(x.id)===String(g.id));
-      return ex?{...ex,name:g.name,date:g.date,fee:parseFloat(g.fee),status:g.status,
-        _v:g.version_no||1,_updatedBy:g.updated_by,_updatedAt:g.updated_at}
-        :{id:g.id,name:g.name,date:g.date,fee:parseFloat(g.fee),status:g.status,
-          _v:g.version_no||1,_updatedBy:g.updated_by,musicians:[],memberPayments:{}};
+      if(ex) return {...ex,name:g.name,date:g.date,fee:parseFloat(g.fee),status:g.status,
+        _v:g.version_no||1,_updatedBy:g.updated_by,_updatedAt:g.updated_at};
+      /* ★ Gig ใหม่ — assemble musicians/payments/income/expenses จาก child tables ที่ดึงมา */
+      const mus=(newMusicians||[]).filter(x=>x.gig_id===g.id).map(x=>{
+        const bd=(x.bd_fee||x.bd_travel||x.bd_oil||x.bd_overtime||x.bd_tip||x.bd_other||x.bd_other_note)
+          ?{fee:parseFloat(x.bd_fee||0),travel:parseFloat(x.bd_travel||0),oil:parseFloat(x.bd_oil||0),overtime:parseFloat(x.bd_overtime||0),tip:parseFloat(x.bd_tip||0),other:parseFloat(x.bd_other||0),otherNote:x.bd_other_note||''}
+          :null;
+        return{memberId:x.member_id,pct:parseFloat(x.pct),splitMode:x.split_mode||'equal',fixedAmt:parseFloat(x.fixed_amt||0),breakdown:bd};
+      });
+      const payments=(newPayments||[]).filter(x=>x.gig_id===g.id).map(x=>{
+        const rawKey=x.slip_key||'';
+        const slipArr=rawKey.includes(',')?rawKey.split(',').filter(Boolean):rawKey?[rawKey]:[];
+        return{date:x.date,amount:parseFloat(x.amount),type:x.type,note:x.note||'',slip:slipArr[0]||null,slips:slipArr.length?slipArr:null};
+      });
+      const memberPayments={};
+      (newMemberPays||[]).filter(x=>x.gig_id===g.id).forEach(x=>{
+        let slips=[];try{if(x.slips_json) slips=JSON.parse(x.slips_json);}catch(e){}
+        if(!slips.length&&x.slip_key) slips=[x.slip_key];
+        memberPayments[x.member_id]={paid:x.paid,slip:x.slip_key||null,slips,amount:parseFloat(x.amount)||0,note:x.note||'',date:x.paid_date||null};
+      });
+      const income={};
+      (newIncomeItems||[]).filter(x=>x.gig_id===g.id).forEach(x=>{
+        const amt=parseFloat(x.amount);
+        if(x.category==='tip_total') income.tipTotal=amt;
+        else income[x.category]=amt;
+        if(x.note) income.otherNote=x.note;
+      });
+      const expRow=(newExpenses||[]).find(x=>x.gig_id===g.id)||{};
+      let expenseRows=[];
+      try{if(expRow.other_note&&expRow.other_note.startsWith('['))expenseRows=JSON.parse(expRow.other_note);}catch(e){}
+      const expenses={
+        expenseRows:expenseRows.length?expenseRows:[],
+        soundFee:parseFloat(expRow.sound_fee||0),soundMemberId:expRow.sound_member_id||null,
+        adsFee:parseFloat(expRow.ads_fee||0),adsChannel:expRow.ads_channel||'',
+        otherFee:parseFloat(expRow.other_fee||0),otherNote:!expRow.other_note?.startsWith('[')?expRow.other_note||'':''
+      };
+      return{
+        id:g.id,jobNo:g.job_no,name:g.name,date:g.date,dateEnd:g.date_end||null,
+        recDate:g.rec_date,timeStart:g.time_start,timeEnd:g.time_end,
+        venue:g.venue||'',province:g.province||'',mapLink:g.map_link||'',
+        fee:parseFloat(g.fee),bandSize:g.band_size,splitMode:g.split_mode,
+        status:g.status,note:g.note||'',
+        source:g.source_name||'',type:g.type_name||'',
+        clientId:g.client_id||null,clientName:g.client_name||'',clientPhone:g.client_phone||'',
+        whtEnabled:g.wht_enabled||false,whtRate:parseFloat(g.wht_rate||0),
+        whtAmt:parseFloat(g.wht_amt||0),whtNet:parseFloat(g.wht_net||0),
+        musicians:mus,payments,memberPayments,income,expenses,
+        _v:g.version_no||1,_updatedAt:g.updated_at,_updatedBy:g.updated_by
+      };
     });
     toast(`🔄 ${(byUser||'').split('#')[0]||'ผู้ใช้อื่น'} อัพเดทข้อมูลงาน — รีเฟรชแล้ว`);
     const ap=document.querySelector('.page.active')?.id?.replace('page-','');
