@@ -1342,8 +1342,8 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
     </div>
     <!-- Tabs -->
     <div class="ltabs">
-      <button class="ltab active" onclick="switchLoginTab('lt-leader',this)">หัวหน้าวง</button>
-      <button class="ltab" onclick="switchLoginTab('lt-member',this)">สมาชิกวง</button>
+      <button class="ltab active" onclick="switchLoginTab('lt-leader',this)">หัวหน้าทีม</button>
+      <button class="ltab" onclick="switchLoginTab('lt-member',this)">สมาชิกทีม</button>
       <button class="ltab" onclick="switchLoginTab('lt-register',this)">สมัครสมาชิก</button>
     </div>
 
@@ -1362,7 +1362,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <input type="checkbox" id="remember-leader" style="accent-color:var(--red);width:14px;height:14px;cursor:pointer">
         <label for="remember-leader" style="font-size:12px;color:var(--ink3);cursor:pointer">จำการเข้าสู่ระบบ</label>
       </div>
-      <button class="btn btn-r" style="width:100%;padding:11px 0;font-size:13px;margin-top:4px" onclick="doLoginLeader()">เข้าสู่ระบบ — หัวหน้าวง</button>
+      <button class="btn btn-r" style="width:100%;padding:11px 0;font-size:13px;margin-top:4px" onclick="doLoginLeader()">เข้าสู่ระบบ — หัวหน้าทีม</button>
       <div style="text-align:center;margin-top:10px">
         <button type="button" onclick="openForgotPassword()" style="background:none;border:none;color:var(--ink3);font-size:12px;cursor:pointer;font-family:var(--f);text-decoration:underline">ลืมรหัสผ่าน?</button>
       </div>
@@ -1384,15 +1384,15 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
         <input type="checkbox" id="remember-member" style="accent-color:var(--red);width:14px;height:14px;cursor:pointer">
         <label for="remember-member" style="font-size:12px;color:var(--ink3);cursor:pointer">จำการเข้าสู่ระบบ</label>
       </div>
-      <button class="btn btn-r" style="width:100%;padding:11px 0;font-size:13px;margin-top:4px" onclick="doLoginMember()">เข้าสู่ระบบ — สมาชิกวง</button>
+      <button class="btn btn-r" style="width:100%;padding:11px 0;font-size:13px;margin-top:4px" onclick="doLoginMember()">เข้าสู่ระบบ — สมาชิกทีม</button>
     </div>
 
     <!-- Tab 3: สมัครสมาชิก (สร้างวงใหม่) -->
     <div class="lpane" id="lt-register">
       <div class="login-err" id="login-err-reg"></div>
       <div class="login-success" id="login-ok-reg"></div>
-      <div class="fg"><label class="fl">ชื่อวงดนตรี *</label><input class="fi" id="reg-band" style="font-size:16px" placeholder="เช่น MembrCo, The Jazz Boys"></div>
-      <div class="fg"><label class="fl">ชื่อหัวหน้าวง *</label><input class="fi" id="reg-leader" style="font-size:16px" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"></div>
+      <div class="fg"><label class="fl">ชื่อวงดนตรีหรือชื่อทีม *</label><input class="fi" id="reg-band" style="font-size:16px" placeholder="เช่น MembrCo, The Jazz Boys"></div>
+      <div class="fg"><label class="fl">ชื่อหัวหน้าทีม *</label><input class="fi" id="reg-leader" style="font-size:16px" placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"></div>
       <div class="fg">
         <label class="fl">Email *</label>
         <div style="position:relative">
@@ -1430,7 +1430,7 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
       </div>
       <button class="btn btn-r" style="width:100%;padding:11px 0;font-size:13px;margin-top:4px" onclick="doRegister()">สมัครสมาชิก / สร้างวง</button>
     </div>
-    <div class="login-foot">Crafted for <b>Bands</b> · <b>Organizers</b> · <b>Venues</b></div>
+    <div class="login-foot">Crafted for <b>Bands</b> · <b>Organizers</b> · <b>Venues</b> · <b>Photographers</b></div>
   </div>
 </div>
 
