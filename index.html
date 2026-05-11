@@ -6920,6 +6920,24 @@ async function sg(){
       if(el){el.style.outline='2px solid var(--red)';el.focus();setTimeout(()=>{el.style.outline='';},2000);}
       return;
     }
+    /* ★ v97: อ่านเบอร์จาก tag input (gcphone hidden) — เผื่อ user แก้ไข
+       แล้ว update เบอร์ใน client master ด้วย */
+    clientPhone=(document.getElementById('gcphone')?.value||'').trim();
+    const cl=S.clients.find(c=>String(c.id)===String(clientId));
+    if(cl){
+      clientName=cl.name;
+      /* ถ้าเบอร์เปลี่ยน → update master client + sync Supabase */
+      if((cl.phone||'')!==clientPhone){
+        cl.phone=clientPhone;
+        console.log('[sg] update client phone:',cl.name,'→',clientPhone);
+        if(CLOUD_ENABLED()){
+          fetch(`${SUPABASE_URL}/rest/v1/clients?id=eq.${cl.id}`,{
+            method:'PATCH',headers:sbHeaders(),
+            body:JSON.stringify({phone:clientPhone||null})
+          }).catch(e=>console.error('update client phone',e));
+        }
+      }
+    }
   } else {
     clientName=document.getElementById('gcname-new')?.value.trim()||'';
     clientPhone=document.getElementById('gcphone-new')?.value.trim()||'';
