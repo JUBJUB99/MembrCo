@@ -6749,13 +6749,7 @@ async function sg(){
   } else {
     clientName=document.getElementById('gcname-new')?.value.trim()||'';
     clientPhone=document.getElementById('gcphone-new')?.value.trim()||'';
-    /* Mandatory: ต้องกรอกชื่อลูกค้าใหม่ */
-    if(!clientName){
-      toast('กรุณากรอกชื่อลูกค้า');
-      const el=document.getElementById('gcname-new');
-      if(el){el.style.outline='2px solid var(--red)';el.focus();setTimeout(()=>{el.style.outline='';},2000);}
-      return;
-    }
+    /* ลูกค้าใหม่ — ไม่ mandatory */
     /* validate ชื่อซ้ำกับ Master */
     const dupClient=S.clients.find(c=>c.name.trim().toLowerCase()===clientName.toLowerCase());
     if(dupClient){
