@@ -2365,33 +2365,15 @@ input[type=date]::-webkit-datetime-edit-year-field{order:3}
 เวลาจบ: 22:00
 สถานที่: โรงแรมแกรนด์ไฮแอท
 จังหวัด: กรุงเทพมหานคร
-Google Map: https://maps.app.goo.gl/xxxxx
-ขนาดวง: 5
-ประเภทงาน: งานแต่งงาน
-แหล่งที่มา: Facebook
-ลูกค้า: คุณสมชาย ใจดี
-เบอร์: 0812345678 / 0898765432
-Line: @somchai_jaidee
-ธนาคาร: กสิกรไทย
-เลขบัญชี: 123-4-56789-0
-รายได้:
-- ค่าตัว: 20000
-- ค่าน้ำมัน: 500
-- ค่านั่งรถ: 1000
-- After Party: 3000
-- ค่าระบบเสียง: 5000
-- ค่าน้ำมันระบบเสียง: 500
-- ค่านั่งรถระบบเสียง: 800
-- ค่าทิปรวม: 2000
-- ส่วนลด: 1000
+รายได้รวม: 35000
 ค่าใช้จ่ายในงาน:
 - ค่าทีมเสียง: 3000
 - ค่าเช่าชุด: 500
 สมาชิก:
-- เอ็ม: 8000
-- เจน: 6000.50
-- บีม: 6000
-หมายเหตุ: ลูกค้าขอเพลงไทยสากล ชุดสีดำ</pre>
+- เอ็ม: 15000
+- เจน: 12000
+- บีม: 8000
+หมายเหตุ: ขอเพลงไทยสากล ชุดสีดำ</pre>
       <button onclick="copyAITemplate()" id="btn-copy-template" style="margin-top:8px;width:100%;padding:6px;border:1px solid #8B5CF6;border-radius:6px;background:transparent;cursor:pointer;font-size:12px;color:#6366F1;font-family:var(--f);font-weight:500">📋 Copy และใส่ใน textarea</button>
     </div>
     <textarea id="ai-fill-input" rows="6" class="fi" placeholder="วางข้อความที่นี่ เช่น:
@@ -2763,7 +2745,7 @@ Line: @somchai_jaidee
     <div style="background:var(--rl);border:1px solid var(--rb);border-radius:var(--r);padding:12px 14px;margin-bottom:10px">
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;align-items:end">
         <div class="fg" style="margin-bottom:0">
-          <label class="fl">ชื่องาน *</label>
+          <label class="fl">ชื่องาน (สถานที่) *</label>
           <input class="fi" id="gn" placeholder="เช่น งานแต่งงานคุณสมชาย" style="font-size:13px;font-weight:500">
         </div>
         <div class="fg" style="margin-bottom:0">
@@ -2814,38 +2796,21 @@ Line: @somchai_jaidee
       </div>
     </div>
 
-    <!-- ROW 2: สถานที่ | ลูกค้า (2 คอล) -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <!-- ROW 2: สถานที่ -->
+    <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px">
       <!-- สถานที่ -->
       <div style="background:var(--bg);border-radius:var(--r);padding:12px 14px">
-        <div style="font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">📍 สถานที่</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-          <div class="fg" style="margin-bottom:0"><label class="fl">ชื่อสถานที่</label><input class="fi" id="gv" placeholder="โรงแรม / สถานที่" style="font-size:12px"></div>
-          <div class="fg cmb-wrap" id="cmb-province" style="margin-bottom:0" onclick="event.stopPropagation()">
-            <label class="fl">จังหวัด</label>
-            <input class="fi" id="gprov" placeholder="ค้นหา..." autocomplete="off" style="font-size:12px" oninput="filterProvince(this.value)" onclick="event.stopPropagation();openCmb('cmb-province')">
-            <div class="cmb-list" id="prov-list"></div>
-          </div>
-        </div>
-        <div class="fg" style="margin-bottom:6px">
-          <label class="fl">🗺 Google Map Link</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input class="fi" id="gmap" type="url" placeholder="https://maps.google.com/..." style="font-size:12px;flex:1">
-            <button type="button" onclick="if(document.getElementById('gmap').value)window.open(document.getElementById('gmap').value,'_blank')"
-              style="flex-shrink:0;height:34px;padding:0 10px;border:1px solid var(--bd2);border-radius:var(--r);background:var(--wh);cursor:pointer;font-size:11px;color:var(--ink2);white-space:nowrap">
-              เปิด 🗺
-            </button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <div class="fg" style="margin-bottom:0"><label class="fl">ขนาดวง</label><select class="fi" id="gbandsize" style="font-size:12px"><option value="">—</option><option value="2">2 ชิ้น</option><option value="3">3 ชิ้น</option><option value="4">4 ชิ้น</option><option value="5">5 ชิ้น</option><option value="6">6 ชิ้น</option></select></div>
-          <div class="fg" style="margin-bottom:0"><label class="fl">ประเภทงาน</label><select class="fi" id="gtype" style="font-size:12px"><option value="">— เลือก —</option></select></div>
-          <div class="fg" style="margin-bottom:0"><label class="fl">แหล่งที่มา</label><select class="fi" id="gsource" style="font-size:12px"><option value="">—</option></select></div>
-        </div>
+        <div style="font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">📋 ข้อมูลงาน</div>
+        <input type="hidden" id="gv">
+        <input type="hidden" id="gprov">
+        <input type="hidden" id="gmap">
+        <select style="display:none" id="gbandsize"><option value="">—</option><option value="2">2 ชิ้น</option><option value="3">3 ชิ้น</option><option value="4">4 ชิ้น</option><option value="5">5 ชิ้น</option><option value="6">6 ชิ้น</option></select>
+        <select style="display:none" id="gtype"><option value="">— เลือก —</option></select>
+        <div class="fg" style="margin-bottom:0"><label class="fl">แหล่งที่มา</label><select class="fi" id="gsource" style="font-size:12px"><option value="">—</option></select></div>
       </div>
 
-      <!-- ลูกค้า -->
-      <div style="background:var(--bg);border-radius:var(--r);padding:12px 14px">
+      <!-- ลูกค้า (hidden) -->
+      <div style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase">👤 ลูกค้า</div>
           <div style="display:flex;gap:0;border:1px solid var(--bd2);border-radius:6px;overflow:hidden;height:26px">
@@ -6762,13 +6727,7 @@ async function sg(){
   const ctype=gigState.ctype||'old';
   if(ctype==='old'){
     clientId=gigState.selectedClientId||null;
-    /* Mandatory: ต้องเลือกลูกค้า */
-    if(!clientId){
-      toast('กรุณาเลือกลูกค้า');
-      const el=document.getElementById('gclient-search');
-      if(el){el.style.outline='2px solid var(--red)';el.focus();setTimeout(()=>{el.style.outline='';},2000);}
-      return;
-    }
+    /* ลูกค้า section hidden — no mandatory client validation */
     /* ★ v97: อ่านเบอร์จาก tag input (gcphone hidden) — เผื่อ user แก้ไข
        แล้ว update เบอร์ใน client master ด้วย */
     clientPhone=(document.getElementById('gcphone')?.value||'').trim();
@@ -12337,9 +12296,6 @@ ${text}
 
 ข้อมูลอ้างอิงในระบบ:
 - สมาชิกวง (ชื่อจริง|ชื่อเล่น|ตำแหน่ง): ${memberList}
-- แหล่งที่มา: ${sourceList}
-- ประเภทงาน: ${jobTypeList}
-- ลูกค้าเดิม: ${clientList}
 
 แยกข้อมูลเป็น JSON:
 {
@@ -12350,56 +12306,21 @@ ${text}
   "timeEnd": "HH:MM format 24 ชม. หรือ null",
   "venue": "ชื่อสถานที่หรือโรงแรม",
   "province": "จังหวัดเต็ม เช่น กรุงเทพมหานคร ไม่ใช่ กทม.",
-  "mapLink": "URL maps.google.com หรือ maps.app.goo.gl หรือ null",
-  "bandsize": จำนวนชิ้นดนตรีเป็น number — ถ้าไม่ระบุให้ดูจากจำนวนสมาชิกที่ระบุ หรือ null,
-  "source": "คัดลอกจากรายการแหล่งที่มา exact เป๊ะ หรือ null",
-  "type": "คัดลอกจากรายการประเภทงาน exact เป๊ะ หรือ null",
-  "bandFee": ค่าตัวรวมทั้งวง (ไม่ใช่รายคน),
-  "afterParty": ค่า after party,
-  "soundFee": ค่าระบบเสียง (รายได้จากลูกค้า),
-  "soundTravel": ค่าน้ำมันระบบเสียง (รายได้จากลูกค้า),
-  "soundCar": ค่านั่งรถระบบเสียง (รายได้จากลูกค้า — รถเดินทางของทีมเสียง ไม่ใช่ค่าน้ำมัน),
-  "travelOil": ค่าน้ำมันของวง (ไม่ใช่ของทีมเสียง),
-  "travelCar": ค่านั่งรถของวง (รถเดินทางของวง ไม่ใช่ค่าน้ำมัน),
-  "tipTotal": ค่าทิปรวมจากลูกค้า,
-  "otherIncome": รายได้อื่นๆ,
-  "otherIncomeNote": "รายละเอียดรายได้อื่นๆ",
-  "discount": ส่วนลดท้ายบิล,
-  "whtEnabled": true ถ้ามีคำว่า หักภาษี/ภาษีหัก ณ ที่จ่าย/WHT ไม่งั้น false,
-  "whtRate": 3 หรือ 5 ตามที่ระบุ ถ้าไม่ระบุให้เป็น 3,
-  "expenseRows": [{"fee": number, "note": "รายละเอียด"}],
-  "clientName": "ชื่อลูกค้า ถ้าใกล้เคียงชื่อในระบบให้ใช้ชื่อในระบบ exact",
-  "clientPhone": "เบอร์คั่นด้วย comma ถ้าหลายเบอร์ ตัวเลขล้วนไม่มีขีด",
-  "clientBankName": "ชื่อธนาคาร หรือ null",
-  "clientBankNo": "เลขบัญชี หรือ null",
-  "clientContact": "Line/IG/Facebook/ช่องทางอื่นๆ ที่ไม่ใช่เบอร์โทร หรือ null",
-  "note": "หมายเหตุ ไม่รวม map link และไม่รวมข้อมูลที่ใส่ field อื่นแล้ว",
-  "musicians": [{"nick": "ชื่อเล่น/ชื่อจริงของบุคคลที่ระบุเป็นสมาชิก/นักดนตรี/ทีมระบบเสียง/ผู้ช่วยระบบเสียง/ช่างเสียง — ให้ match กับ memberList (ชื่อ|ชื่อเล่น|ตำแหน่ง) ถ้าไม่แน่ใจให้ใช้ชื่อที่ใกล้เคียงที่สุด", "fee": ค่าตัวรายคน, "travel": ค่ารถ, "oil": ค่าน้ำมัน, "overtime": ค่าต่อเวลา, "other": ค่าอื่น, "otherNote": "หมายเหตุ"}]
+  "bandFee": รายได้รวมทั้งวง (ค่าตัววง + ค่าเดินทาง + ค่าอื่นๆ รวมกันเป็นยอดเดียว),
+  "expenseRows": [{"fee": number, "note": "รายละเอียดค่าใช้จ่าย"}],
+  "note": "หมายเหตุ ไม่รวมข้อมูลที่ใส่ field อื่นแล้ว",
+  "musicians": [{"nick": "ชื่อเล่น/ชื่อจริงของบุคคลที่ระบุเป็นสมาชิก/นักดนตรี/ทีมระบบเสียง — ให้ match กับ memberList (ชื่อ|ชื่อเล่น|ตำแหน่ง) ถ้าไม่แน่ใจให้ใช้ชื่อที่ใกล้เคียงที่สุด", "fee": รายได้รายคน (รวมทุกรายการของคนนั้น)}]
 }
 กฎสำคัญ:
-1. bandFee = ค่าวงรวม, musicians[].fee = ค่าตัวแต่ละคน (คนละอย่างกัน)
-2. source และ type ต้อง copy ตัวอักษรจากรายการที่ให้ exact ห้ามแต่งเอง
-3. expenseRows — ใส่เฉพาะเมื่อ prompt มีคำว่า "ค่าใช้จ่ายในงาน" เท่านั้น ถ้าไม่มีให้เป็น []
-4. ค่าน้ำมัน/ค่ารถของสมาชิกใส่ใน musicians[].oil และ musicians[].travel เสมอ
-5. ถ้าไม่รู้ว่าค่าน้ำมัน/รถเป็นของใคร ให้แบ่งเท่ากันทุกคนใน musicians
-6. ตัวเลขทุกตัวเป็น number ไม่ใช่ string — รองรับทศนิยม เช่น 1425.5, 1000.50
-7. musicians = [] ถ้าไม่มีข้อมูล
-8. Line ID / IG / Facebook ให้ใส่ใน clientContact ไม่ใช่ note
-9. ชื่อลูกค้า — ถ้าตรงหรือใกล้เคียงชื่อในระบบให้ใช้ชื่อในระบบเป๊ะๆ เพื่อ match ได้ถูก
-10. bandsize — ถ้าระบุสมาชิก 4 คน แต่ไม่บอก bandsize ให้ใส่ 4
-11. musicians — ถ้า prompt มีคำว่า "สมาชิก", "นักดนตรี", "ทีม", "วง" ตามด้วยชื่อหรือรายการ ให้จับทุกชื่อ/ชื่อเล่นใส่ใน musicians
-12. nick ใน musicians ต้อง match กับชื่อหรือชื่อเล่นใน memberList เท่านั้น — ถ้าไม่มีใน memberList ห้ามใส่ ให้ข้ามรายการนั้นทิ้ง
-13. ถ้ามีทีมหลายกลุ่ม เช่น "ทีมเครื่องเสียง+นักดนตรี" ให้รวมทุกคนไว้ใน musicians เดียวกัน แต่ยังคงต้อง match กับ memberList เท่านั้น
-14. dateEnd — ถ้า timeEnd < timeStart (เช่น 23:00–00:30, 21:00–02:00) = ข้ามวัน ให้ dateEnd = date + 1 วัน เสมอ ถ้าไม่ข้ามวันให้เป็น null
-15. แยกค่าเดินทางของ "วง" และ "ทีมเสียง" ให้ชัดเจน:
-    - travelOil / travelCar = ของวง (นักดนตรี)
-    - soundTravel / soundCar = ของทีมเสียง
-    ถ้า prompt แยกประเภทไม่ชัดเจน ให้ใส่ใน travelOil / travelCar (ของวง) เป็น default
-16. แยก "ค่าน้ำมัน" กับ "ค่านั่งรถ":
-    - "ค่าน้ำมัน" = travelOil / soundTravel
-    - "ค่านั่งรถ", "ค่ารถ", "ค่าเดินทาง" = travelCar / soundCar
-17. ทีมระบบเสียง / ผู้ช่วยระบบเสียง — ถ้า prompt ระบุชื่อ/ชื่อเล่นของบุคคล (เช่น "ทีมระบบเสียง: โน้ต", "ผู้ช่วยซาวด์: เบียร์", "ช่างเสียงคือบอย") และชื่อนั้น match กับ memberList ได้ ให้ใส่ชื่อเล่นนั้นใน musicians[] เหมือนนักดนตรีปกติ พร้อมกำหนด fee/travel/oil ตามที่ระบุ (ถ้าไม่ระบุค่าตัวให้ใส่ fee=0) — ห้ามเว้นไว้แค่ใน note เพราะระบบต้องการผูก member ID จริง — ถ้าชื่อไม่อยู่ใน memberList ให้ข้าม (ไม่ใส่ musicians)
-18. ค่าแอด / ค่าโฆษณา / ค่า ads / ค่าบูสโพสต์ — ห้ามใส่ใน otherIncome เด็ดขาด และห้ามใส่ใน expenseRows ด้วย ให้ละเว้นข้อมูลนี้ทิ้งไปเลย ไม่ต้องนำมากรอกในช่องใดทั้งสิ้น`;
+1. bandFee = รายได้รวมจากลูกค้าทั้งหมด (รวมค่าเดินทาง ค่าอาหาร ค่าอื่นๆ เป็นยอดเดียว)
+2. musicians[].fee = รายได้ของสมาชิกแต่ละคน (รวมทุกรายการของคนนั้น)
+3. expenseRows — ใส่เฉพาะค่าใช้จ่ายจริงในงาน เช่น ค่าเช่าเวที ค่าขนส่งอุปกรณ์
+4. ตัวเลขทุกตัวเป็น number ไม่ใช่ string — รองรับทศนิยม เช่น 1425.5, 1000.50
+5. musicians = [] ถ้าไม่มีข้อมูล
+6. nick ใน musicians ต้อง match กับชื่อหรือชื่อเล่นใน memberList เท่านั้น — ถ้าไม่มีใน memberList ห้ามใส่ ให้ข้ามรายการนั้นทิ้ง
+7. ถ้ามีทีมหลายกลุ่ม เช่น "ทีมเครื่องเสียง+นักดนตรี" ให้รวมทุกคนไว้ใน musicians เดียวกัน แต่ยังคงต้อง match กับ memberList เท่านั้น
+8. dateEnd — ถ้า timeEnd < timeStart (เช่น 23:00–00:30, 21:00–02:00) = ข้ามวัน ให้ dateEnd = date + 1 วัน เสมอ ถ้าไม่ข้ามวันให้เป็น null
+9. ค่าแอด / ค่าโฆษณา / ค่า ads / ค่าบูสโพสต์ — ห้ามใส่ใน expenseRows เด็ดขาด ให้ละเว้นทิ้งไปเลย`;
 
   try{
     /* สร้าง message content — PDF หรือ text */
@@ -12506,43 +12427,9 @@ function _reApplyAIFill(p){
   if(p.venue) document.getElementById('gv').value=p.venue;
   if(p.province) document.getElementById('gprov').value=p.province;
   if(p.mapLink){const gm=document.getElementById('gmap');if(gm)gm.value=p.mapLink;}
-  /* ── ขนาดวง / ประเภท / แหล่งที่มา ── */
-  if(p.bandsize){const gb=document.getElementById('gbandsize');if(gb&&Array.from(gb.options).find(o=>o.value===String(p.bandsize)))gb.value=String(p.bandsize);}
-  if(p.source){const gs=document.getElementById('gsource');if(gs){const srcL=p.source.toLowerCase();const opt=Array.from(gs.options).find(o=>o.value.toLowerCase()===srcL);if(opt)gs.value=opt.value;}}
-  if(p.type){const gt=document.getElementById('gtype');if(gt){const typL=p.type.toLowerCase();const opt=Array.from(gt.options).find(o=>o.value.toLowerCase()===typL);if(opt)gt.value=opt.value;}}
-  /* ── รายได้ ── */
-  /* ★ v96 fix: ถ้า otherIncomeNote มีคำว่า "แอด/โฆษณา/ads/บูส" → ย้ายไป expenseRows ไม่รวมใน bandFee */
-  const _isAdCost=(note)=>{
-    if(!note) return false;
-    const n=(note||'').toLowerCase();
-    return n.includes('แอด')||n.includes('โฆษณา')||n.includes('ads')||n.includes('บูส')||n.includes('boost')||n.includes('promote')||n.includes('ad ');
-  };
-  const otherIncomeIsAd=_isAdCost(p.otherIncomeNote);
-  /* รวม otherIncome เข้า gf-band เฉพาะกรณีที่ไม่ใช่ค่าแอด */
-  const feeVal=(p.bandFee||p.fee||0)+(otherIncomeIsAd?0:(p.otherIncome||0));
-  if(feeVal>0) document.getElementById('gf-band').value=feeVal;
-  if(p.afterParty>0) document.getElementById('gf-after').value=p.afterParty;
-  if(p.soundFee>0) document.getElementById('gf-sound').value=p.soundFee;
-  if(p.soundTravel>0) document.getElementById('gf-sound-oil').value=p.soundTravel;
-  /* ★ field ใหม่: ค่านั่งรถระบบเสียง, ค่าน้ำมันวง, ค่านั่งรถวง, ทิปรวม */
-  if(p.soundCar>0) document.getElementById('gf-sound-car').value=p.soundCar;
-  if(p.travelOil>0) document.getElementById('gf-travel-oil').value=p.travelOil;
-  if(p.travelCar>0) document.getElementById('gf-travel-car').value=p.travelCar;
-  if(p.tipTotal>0) document.getElementById('gf-tip-total').value=p.tipTotal;
-  /* otherIncome: ถ้าเป็นค่าแอด → เพิ่มใน expenseRows แทน / ถ้าไม่ใช่ → รวมใน gf-band แล้วข้างบน */
-  if(otherIncomeIsAd&&(p.otherIncome||0)>0){
-    /* จะถูก insert ใน expenseRows block ด้านล่าง — store ไว้ก่อน */
-    p._adExpense={fee:p.otherIncome,note:p.otherIncomeNote||'ค่าแอด'};
-  }
-  if(p.otherIncomeNote&&!otherIncomeIsAd){
-    /* ใส่ note ใน หมายเหตุ เฉพาะกรณีที่ไม่ใช่ค่าแอด */
-    const noteEl=document.getElementById('gnote');
-    if(noteEl){
-      const existing=noteEl.value;
-      noteEl.value=existing?(existing+'\n'+p.otherIncomeNote):p.otherIncomeNote;
-    }
-  }
-  if(p.discount>0){const d=document.getElementById('gf-discount');if(d)d.value=p.discount;}
+  /* ── รายได้รวม (single field) ── */
+  const feeVal=p.bandFee||p.fee||0;
+  if(feeVal>0){const bEl=document.getElementById('gf-band');if(bEl)bEl.value=feeVal;}
   if(typeof calcTotalIncome==='function') calcTotalIncome();
   /* ── ค่าใช้จ่าย ── */
   const aiRows=document.getElementById('ge-rows');if(aiRows)aiRows.innerHTML='';
@@ -12554,35 +12441,7 @@ function _reApplyAIFill(p){
   }
   /* ★ v96: ค่าแอด — ไม่ทำอะไรทั้งนั้น (ไม่รวมรายได้ ไม่ใส่ expense) */
   if(typeof calcExpenses==='function') calcExpenses();
-  /* ── ลูกค้า ── */
-  if(p.clientName){
-    const match=S.clients.find(c=>c.name.includes(p.clientName)||p.clientName.includes(c.name));
-    if(match){
-      setCtype('old');gigState.selectedClientId=match.id;
-      document.getElementById('gclient-search').value=match.name;
-      setPhoneTags(match.phone||'');
-      const bn=document.getElementById('gcbank-name');const bno=document.getElementById('gcbank-no');
-      if(bn)bn.value=match.bankName||'';if(bno)bno.value=match.bankNo||'';
-      const gcc=document.getElementById('gccontact');if(gcc)gcc.value=match.contact||'';
-    } else {
-      setCtype('new');
-      document.getElementById('gcname-new').value=p.clientName;
-      const phoneStr=typeof p.clientPhone==='string'?p.clientPhone:String(p.clientPhone||'');
-      if(phoneStr){
-        const phones=phoneStr.split(/[,\/]/).map(s=>s.replace(/\D/g,'').trim()).filter(s=>s.length>=9);
-        if(phones.length){renderPhoneTagsNew(phones);syncPhoneNewHidden();}
-      }
-      if(p.clientBankName){const bn=document.getElementById('gcbank-name-new');if(bn)bn.value=p.clientBankName;}
-      if(p.clientBankNo){const bno=document.getElementById('gcbank-no-new');if(bno)bno.value=String(p.clientBankNo);}
-      if(p.clientContact){const gcc=document.getElementById('gccontact-new');if(gcc)gcc.value=p.clientContact;}
-    }
-  }
-  /* ── WHT ── */
-  if(p.whtEnabled){
-    const whtCb=document.getElementById('gig-wht');if(whtCb)whtCb.checked=true;
-    const rr=document.getElementById(p.whtRate===5?'wht-rate-5':'wht-rate-3');if(rr)rr.checked=true;
-    calcWHT();
-  }
+  /* ── ลูกค้า / WHT (hidden — skip) ── */
   /* ── หมายเหตุ ── */
   if(p.note) document.getElementById('gnote').value=p.note;
   /* ── นักดนตรี ── */
@@ -12613,11 +12472,10 @@ function _reApplyAIFill(p){
       const match=_findBestMember(mu.nick,activeMembers);
       /* ป้องกัน duplicate — คนเดียวกันเข้าได้แค่ครั้งเดียว */
       if(match&&!matchedMusicians.find(x=>String(x.memberId)===String(match.id))){
-        const totalAmt=(mu.fee||0)+(mu.travel||0)+(mu.oil||0)+(mu.overtime||0)+(mu.other||0);
+        const totalAmt=mu.fee||0;
         matchedMusicians.push({
           memberId:match.id,
-          fee:mu.fee||0, travel:mu.travel||0, oil:mu.oil||0,
-          overtime:mu.overtime||0, other:mu.other||0, otherNote:mu.otherNote||'',
+          fee:mu.fee||0,
           totalAmt
         });
       } else if(!match){
@@ -12643,14 +12501,9 @@ function _reApplyAIFill(p){
           const txtEl=document.getElementById(`gmem-txt-${i}`);
           if(txtEl&&mem) txtEl.value=`${mem.name}${mem.lastname?' '+mem.lastname:''} (${mem.nick}) — ${mem.role}`;
           if(hasAmt){
-            /* กรอก breakdown */
-            const setV=(id,v)=>{const el=document.getElementById(id);if(el&&v>0)el.value=v;};
-            /* ★ single-field: รวม breakdown AI ใส่ gbd-fee */
-            const _aiFeeTotal=(mu.fee||0)+(mu.travel||0)+(mu.oil||0)+(mu.overtime||0)+(mu.other||0);
-            setV(`gbd-fee-${i}`,_aiFeeTotal||mu.fee||'');
-            setV(`gbd-other-${i}`,mu.other);
-            const noteEl=document.getElementById(`gbd-note-${i}`);
-            if(noteEl&&mu.otherNote) noteEl.value=mu.otherNote;
+            /* กรอก breakdown — single field เท่านั้น */
+            const feeEl=document.getElementById(`gbd-fee-${i}`);
+            if(feeEl&&mu.fee>0) feeEl.value=mu.fee;
             if(typeof calcBreakdown==='function') calcBreakdown(i);
           } else {
             /* mode pct */
